@@ -65,7 +65,7 @@ public class PlayerInteraction : MonoBehaviour
                     pickupPrompt.SetActive(true);
                     if (promptText != null)
                     {
-                        promptText.text = "E to pick " + item.itemName;
+                        promptText.text = " " + item.itemName;
                     }
                 }
                 
