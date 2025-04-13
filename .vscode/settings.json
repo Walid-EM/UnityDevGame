@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "Shigibigoulah.sln"
+    "dotnet.defaultSolution": "UnityDevGame.sln"
 }

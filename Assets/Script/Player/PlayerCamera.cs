@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class PlayerController : MonoBehaviour
+public class PlayerCamera : MonoBehaviour
 {
     [Header("Références")]
     [Tooltip("Référence à la caméra du joueur")]
