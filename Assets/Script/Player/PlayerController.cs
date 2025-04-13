@@ -521,7 +521,7 @@ public class PlayerMovement : MonoBehaviour
         else
         {
             // Calculer les positions pour visualiser en mode éditeur
-            CalculateRaycastPositions();
+            //CalculateRaycastPositions();
             
             Gizmos.color = Color.blue;
             foreach (Vector3 pos in raycastPositions)
