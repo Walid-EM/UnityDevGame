@@ -11,7 +11,7 @@ public class HotbarManager : MonoBehaviour
     public InventoryManager inventoryManager;
     
     [Header("Configuration de la Hotbar")]
-    public int hotbarSlots = 9; // Nombre de slots dans la hotbar
+    public int hotbarSlots = 8; // Nombre de slots dans la hotbar
     public Image[] slotImages; // Références aux Images des slots de la hotbar
     
     [Header("Affichage des quantités")]

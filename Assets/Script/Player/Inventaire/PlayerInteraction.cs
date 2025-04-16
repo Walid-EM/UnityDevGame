@@ -1,5 +1,5 @@
 using UnityEngine;
-using TMPro;
+using TMPro; // Utilise TextMeshPro à la place de UnityEngine.UI.Text
 
 public class PlayerInteraction : MonoBehaviour
 {
@@ -9,7 +9,7 @@ public class PlayerInteraction : MonoBehaviour
     
     [Header("UI")]
     public GameObject pickupPrompt;
-    public TMP_Text promptText;
+    public TMP_Text promptText; // Utilise TMP_Text au lieu de Text
     
     private Camera playerCamera;
     private PickupItem currentTarget;
@@ -22,12 +22,6 @@ public class PlayerInteraction : MonoBehaviour
         if (pickupPrompt != null)
         {
             pickupPrompt.SetActive(false);
-            
-            // S'assurer que le texte est vide au démarrage
-            if (promptText != null)
-            {
-                promptText.text = "";
-            }
         }
     }
     
@@ -42,8 +36,11 @@ public class PlayerInteraction : MonoBehaviour
             // Ramasser l'objet
             currentTarget.PickUp();
             
-            // Désactiver le prompt et effacer le texte
-            HidePrompt();
+            // Désactiver le prompt
+            if (pickupPrompt != null)
+            {
+                pickupPrompt.SetActive(false);
+            }
             
             currentTarget = null;
         }
@@ -63,45 +60,30 @@ public class PlayerInteraction : MonoBehaviour
             if (item != null)
             {
                 // Afficher le prompt
-                ShowPrompt("Press 'e' to pick up " + item.itemName);
+                if (pickupPrompt != null)
+                {
+                    pickupPrompt.SetActive(true);
+                    if (promptText != null)
+                    {
+                        promptText.text = "Press 'e' to pick up " + item.itemName;
+                    }
+                }
                 
                 currentTarget = item;
                 return;
             }
         }
         
-        // Si aucun objet n'est ciblé ou si le rayon ne touche rien
-        HidePrompt();
-        
-        currentTarget = null;
-    }
-    
-    // Nouvelle méthode pour afficher le prompt avec un texte spécifique
-    private void ShowPrompt(string text)
-    {
-        if (pickupPrompt != null)
-        {
-            pickupPrompt.SetActive(true);
-            
-            if (promptText != null)
-            {
-                promptText.text = text;
-            }
-        }
-    }
-    
-    // Nouvelle méthode pour cacher le prompt et effacer son texte
-    private void HidePrompt()
-    {
+        // Si le rayon ne touche pas d'objet ramassable, désactiver le prompt et effacer le texte
         if (pickupPrompt != null)
         {
             pickupPrompt.SetActive(false);
-            
-            // Important : effacer le texte quand on cache le prompt
             if (promptText != null)
             {
-                promptText.text = "";
+                promptText.text = ""; // Effacer le texte lorsque le joueur ne regarde plus d'objet
             }
         }
+        
+        currentTarget = null;
     }
 }
