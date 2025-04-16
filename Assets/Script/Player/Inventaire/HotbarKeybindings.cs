@@ -124,31 +124,30 @@ public class HotbarKeybindings : MonoBehaviour
         }
         
         // Récupérer l'objet dans le slot sélectionné
-        PickupItem selectedItem = GetItemAtSlot(currentSelectedSlot);
+        PickupItemData selectedItem = GetItemAtSlot(currentSelectedSlot);
         
         if (selectedItem != null)
         {
             Debug.Log("Utilisation de l'objet : " + selectedItem.itemName);
-            selectedItem.UseItem();
+            //selectedItem.UseItem();
         }
         else
         {
             Debug.Log("Aucun objet dans le slot " + currentSelectedSlot);
         }
+        
     }
     
     /// <summary>
     /// Récupère l'objet dans un slot spécifique de la hotbar
-    /// </summary>
-    private PickupItem GetItemAtSlot(int slotIndex)
+    private PickupItemData GetItemAtSlot(int slotIndex)
     {
-        if (hotbarManager != null)
-        {
-            return hotbarManager.GetItemAtSlot(slotIndex);
-        }
-        return null;
+    if (hotbarManager != null)
+    {
+        return hotbarManager.GetItemAtSlot(slotIndex);
     }
-    
+    return null;
+    }
     /// <summary>
     /// Réinitialise les couleurs de tous les slots à la valeur par défaut
     /// </summary>

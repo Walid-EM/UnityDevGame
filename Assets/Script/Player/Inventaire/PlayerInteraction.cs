@@ -1,5 +1,5 @@
 using UnityEngine;
-using TMPro; // Utilise TextMeshPro à la place de UnityEngine.UI.Text
+using TMPro;
 
 public class PlayerInteraction : MonoBehaviour
 {
@@ -9,7 +9,7 @@ public class PlayerInteraction : MonoBehaviour
     
     [Header("UI")]
     public GameObject pickupPrompt;
-    public TMP_Text promptText; // Utilise TMP_Text au lieu de Text
+    public TMP_Text promptText;
     
     private Camera playerCamera;
     private PickupItem currentTarget;
@@ -22,6 +22,12 @@ public class PlayerInteraction : MonoBehaviour
         if (pickupPrompt != null)
         {
             pickupPrompt.SetActive(false);
+            
+            // S'assurer que le texte est vide au démarrage
+            if (promptText != null)
+            {
+                promptText.text = "";
+            }
         }
     }
     
@@ -34,13 +40,10 @@ public class PlayerInteraction : MonoBehaviour
         if (currentTarget != null && Input.GetKeyDown(KeyCode.E))
         {
             // Ramasser l'objet
-            currentTarget.Pickup();
+            currentTarget.PickUp();
             
-            // Désactiver le prompt
-            if (pickupPrompt != null)
-            {
-                pickupPrompt.SetActive(false);
-            }
+            // Désactiver le prompt et effacer le texte
+            HidePrompt();
             
             currentTarget = null;
         }
@@ -60,14 +63,7 @@ public class PlayerInteraction : MonoBehaviour
             if (item != null)
             {
                 // Afficher le prompt
-                if (pickupPrompt != null)
-                {
-                    pickupPrompt.SetActive(true);
-                    if (promptText != null)
-                    {
-                        promptText.text = "Press 'e' to pick up " + item.itemName;
-                    }
-                }
+                ShowPrompt("Press 'e' to pick up " + item.itemName);
                 
                 currentTarget = item;
                 return;
@@ -75,11 +71,37 @@ public class PlayerInteraction : MonoBehaviour
         }
         
         // Si aucun objet n'est ciblé ou si le rayon ne touche rien
+        HidePrompt();
+        
+        currentTarget = null;
+    }
+    
+    // Nouvelle méthode pour afficher le prompt avec un texte spécifique
+    private void ShowPrompt(string text)
+    {
+        if (pickupPrompt != null)
+        {
+            pickupPrompt.SetActive(true);
+            
+            if (promptText != null)
+            {
+                promptText.text = text;
+            }
+        }
+    }
+    
+    // Nouvelle méthode pour cacher le prompt et effacer son texte
+    private void HidePrompt()
+    {
         if (pickupPrompt != null)
         {
             pickupPrompt.SetActive(false);
+            
+            // Important : effacer le texte quand on cache le prompt
+            if (promptText != null)
+            {
+                promptText.text = "";
+            }
         }
-        
-        currentTarget = null;
     }
 }
