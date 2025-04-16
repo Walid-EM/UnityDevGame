@@ -5,6 +5,7 @@ public class HotbarKeybindings : MonoBehaviour
 {
     [Header("Références")]
     public HotbarManager hotbarManager;
+    public PlayerInteraction playerInteraction; // Référence ajoutée vers PlayerInteraction
     
     [Header("Configuration")]
     [Tooltip("Définir les touches pour chaque slot (doit correspondre au nombre de slots dans HotbarManager)")]
@@ -37,6 +38,16 @@ public class HotbarKeybindings : MonoBehaviour
             {
                 Debug.LogError("Impossible de trouver l'HotbarManager !");
                 return;
+            }
+        }
+        
+        // S'assurer que nous avons une référence vers PlayerInteraction
+        if (playerInteraction == null)
+        {
+            playerInteraction = GameObject.FindGameObjectWithTag("Player")?.GetComponent<PlayerInteraction>();
+            if (playerInteraction == null)
+            {
+                Debug.LogError("Impossible de trouver le PlayerInteraction !");
             }
         }
         
@@ -108,17 +119,17 @@ public class HotbarKeybindings : MonoBehaviour
             }
         }
         
-        // Utiliser l'objet si présent dans ce slot
-        UseSelectedItem();
+        // MODIFICATION: Équiper l'objet via PlayerInteraction
+        EquipSelectedItem();
     }
     
     /// <summary>
-    /// Utilise l'objet actuellement sélectionné dans la hotbar
+    /// Équipe l'objet actuellement sélectionné dans la hotbar
     /// </summary>
-    private void UseSelectedItem()
+    private void EquipSelectedItem()
     {
-        // Si aucun slot n'est sélectionné, ne rien faire
-        if (currentSelectedSlot < 0 || currentSelectedSlot >= hotbarManager.hotbarSlots)
+        // Si aucun slot n'est sélectionné ou PlayerInteraction n'est pas disponible, ne rien faire
+        if (currentSelectedSlot < 0 || playerInteraction == null)
         {
             return;
         }
@@ -126,28 +137,32 @@ public class HotbarKeybindings : MonoBehaviour
         // Récupérer l'objet dans le slot sélectionné
         PickupItemData selectedItem = GetItemAtSlot(currentSelectedSlot);
         
+        // Équiper l'objet si présent
         if (selectedItem != null)
         {
-            Debug.Log("Utilisation de l'objet : " + selectedItem.itemName);
-            //selectedItem.UseItem();
+            Debug.Log("Équipement de l'objet : " + selectedItem.itemName);
+            playerInteraction.EquipItem(selectedItem);
         }
         else
         {
-            Debug.Log("Aucun objet dans le slot " + currentSelectedSlot);
+            // Si le slot est vide, déséquiper l'objet actuel
+            Debug.Log("Déséquipement (slot vide)");
+            playerInteraction.UnequipCurrentItem();
         }
-        
     }
     
     /// <summary>
     /// Récupère l'objet dans un slot spécifique de la hotbar
+    /// </summary>
     private PickupItemData GetItemAtSlot(int slotIndex)
     {
-    if (hotbarManager != null)
-    {
-        return hotbarManager.GetItemAtSlot(slotIndex);
+        if (hotbarManager != null)
+        {
+            return hotbarManager.GetItemAtSlot(slotIndex);
+        }
+        return null;
     }
-    return null;
-    }
+    
     /// <summary>
     /// Réinitialise les couleurs de tous les slots à la valeur par défaut
     /// </summary>

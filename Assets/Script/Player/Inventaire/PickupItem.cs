@@ -10,6 +10,10 @@ public class PickupItem : MonoBehaviour
     // Est-ce que l'objet peut être cumulé ?
     public bool isStackable = false;
     
+    // Nouvelles propriétés pour l'équipement
+    public GameObject equipPrefab; // Prefab à instancier quand équipé
+    public bool canBeEquipped = true; // Est-ce que l'objet peut être équipé
+    
     // Effet visuel lors du ramassage
     public GameObject pickupEffectPrefab;
     
@@ -65,6 +69,18 @@ public class PickupItem : MonoBehaviour
             if (pickupEffectPrefab != null)
             {
                 Instantiate(pickupEffectPrefab, transform.position, Quaternion.identity);
+            }
+            
+            // Si l'objet peut être équipé et que nous avons un PlayerInteraction, l'équiper automatiquement
+            if (canBeEquipped && equipPrefab != null)
+            {
+                PlayerInteraction playerInteraction = GameObject.FindGameObjectWithTag("Player")?.GetComponent<PlayerInteraction>();
+                if (playerInteraction != null)
+                {
+                    // Créer temporairement un PickupItemData pour l'équipement
+                    PickupItemData itemData = new PickupItemData(this);
+                    playerInteraction.EquipItem(itemData);
+                }
             }
             
             // Détruire l'objet dans le monde

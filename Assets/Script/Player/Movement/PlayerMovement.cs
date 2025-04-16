@@ -85,6 +85,9 @@ public class PlayerMovement : MonoBehaviour
         wasGroundedLastFrame = true;
         isJumping = false;
         slopeNormal = UpVector;
+        
+    // Ignore les collisions entre le layer du joueur et le layer Pickable
+    Physics.IgnoreLayerCollision(LayerMask.NameToLayer("Player"), LayerMask.NameToLayer("Pickable"), true);
     }
     
     void Update()

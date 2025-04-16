@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: f0417cb251e952247a71cb715e88de8f
+guid: 904b5c5fecd8a2b46a6affa065e82854
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -110,23 +110,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: vecteezy_ai-generated-png-image-featuring-coconut-isolation_38583052_0
+      name: "Capture_d_\xE9cran_2025-04-16_192251-removebg-preview_0"
       rect:
         serializedVersion: 2
-        x: 71
-        y: 243
-        width: 3901
-        height: 3782
+        x: 78
+        y: 40
+        width: 160
+        height: 180
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 4f2443b91aafe1a44b04ad0d8653cceb
-      internalID: -1592272807
+      spriteID: 87dd4cf302fd2714a964cc49285b8037
+      internalID: -1996087336
       vertices: []
       indices: 
       edges: []
@@ -135,7 +135,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: dfcd7f1302c0ad94c91ce029f11ff300
+    spriteID: b02a21e22ddd93140bbe2a62910ced65
     internalID: 0
     vertices: []
     indices: 
@@ -145,7 +145,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      vecteezy_ai-generated-png-image-featuring-coconut-isolation_38583052_0: -1592272807
+      "Capture_d_\xE9cran_2025-04-16_192251-removebg-preview_0": -1996087336
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

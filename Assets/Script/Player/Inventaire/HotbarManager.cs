@@ -190,6 +190,15 @@ public class HotbarManager : MonoBehaviour
     // Méthode pour ajouter un PickupItemData à la hotbar
     public void AddItemDataToHotbar(PickupItemData item)
     {
+        // Vérification du prefab
+        if (item != null) {
+            if (item.equipPrefab != null) {
+                Debug.Log($"HotbarManager: Objet {item.itemName} a un prefab: {item.equipPrefab.name}");
+            } else {
+                Debug.LogWarning($"HotbarManager: Objet {item.itemName} n'a PAS de prefab");
+            }
+        }
+        
         Debug.Log($"Tentative d'ajout de l'objet: {item.itemName} (Empilable: {item.isStackable})");
         
         // Si l'objet est empilable, vérifier s'il existe déjà dans la hotbar
@@ -340,5 +349,5 @@ public class HotbarManager : MonoBehaviour
             Debug.Log($"Objet retiré du slot {slotIndex}");
             UpdateHotbarUI();
         }
-    }
+    } 
 }

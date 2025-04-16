@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: f0417cb251e952247a71cb715e88de8f
+guid: d18d62686c6068649b7e3d3e04ffcbce
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -110,13 +110,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: vecteezy_ai-generated-png-image-featuring-coconut-isolation_38583052_0
+      name: Potionmanaforpng-removebg-preview_0
       rect:
         serializedVersion: 2
-        x: 71
-        y: 243
-        width: 3901
-        height: 3782
+        x: 24
+        y: 35
+        width: 100
+        height: 110
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -125,8 +125,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 4f2443b91aafe1a44b04ad0d8653cceb
-      internalID: -1592272807
+      spriteID: c9e3ced4c59a53e4c8424a59685dc2a3
+      internalID: 1067384778
       vertices: []
       indices: 
       edges: []
@@ -135,7 +135,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: dfcd7f1302c0ad94c91ce029f11ff300
+    spriteID: e19fc820a6185df4d99220b0065b0fe2
     internalID: 0
     vertices: []
     indices: 
@@ -145,7 +145,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      vecteezy_ai-generated-png-image-featuring-coconut-isolation_38583052_0: -1592272807
+      Potionmanaforpng-removebg-preview_0: 1067384778
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

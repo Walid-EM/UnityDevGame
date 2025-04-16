@@ -8,7 +8,13 @@ public class PickupItemData
     public int itemValue = 1;
     public string itemDescription = "Un objet ramassable";
     
-    // Nouvel attribut pour déterminer si l'objet peut être cumulé
+    // Nouvel attribut pour le prefab 3D à instancier quand équipé
+    public GameObject equipPrefab;
+    
+    // Nouvel attribut pour déterminer si l'objet peut être équipé
+    public bool canBeEquipped = true;
+    
+    // Attribut pour déterminer si l'objet peut être cumulé
     public bool isStackable = false;
     
     // Pour les objets cumulables, on ajoute une quantité
@@ -29,6 +35,8 @@ public class PickupItemData
             this.itemIcon = original.itemIcon;
             this.itemValue = original.itemValue;
             this.itemDescription = original.itemDescription;
+            this.equipPrefab = original.equipPrefab;
+            this.canBeEquipped = original.canBeEquipped;
             this.isStackable = original.isStackable;
             this.quantity = original.quantity;
             this.uniqueID = original.uniqueID;
@@ -50,6 +58,8 @@ public class PickupItemData
             this.itemIcon = item.itemIcon;
             this.itemValue = item.itemValue;
             this.itemDescription = item.itemDescription;
+            this.equipPrefab = item.equipPrefab; // Nouvelle propriété
+            this.canBeEquipped = item.canBeEquipped; // Nouvelle propriété
             this.isStackable = item.isStackable;
             this.quantity = 1;
             
