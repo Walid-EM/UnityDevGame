@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 352f27c7c7f9688468a00f766b4018cd, type: 3}
+  m_Name: ItemDatabase
+  m_EditorClassIdentifier: 
+  items:
+  - ID: 0
+    Name: Axe
+    InventoryIcon: {fileID: -810280702, guid: f53cce28ba3c17a4fad1e9131b092d20, type: 3}
+    WorldPrefab: {fileID: 5003631224090557920, guid: 45dee1f0260c4e144867701a4e98100b, type: 3}
+    InventoryPrefab: {fileID: 5003631224090557920, guid: 620878c405c6ae549be09d0a4d07c7c8, type: 3}
+    Type: 0
+    Description: Hache
+    IsStackable: 0
+    MaxStackSize: 1
+    BaseValue: 1
+    WeaponDamage: 2
+    HealthRestore: 0
+  - ID: 1
+    Name: Sword
+    InventoryIcon: {fileID: -777907166, guid: 6f4f4ce4abcf2ff47a330f153634742f, type: 3}
+    WorldPrefab: {fileID: 4924855788387876812, guid: 4c956f3fcf47fce44844e5fa31737821, type: 3}
+    InventoryPrefab: {fileID: 4924855788387876812, guid: 11dae8a39d4e829439060f2b3cf595f1, type: 3}
+    Type: 0
+    Description: "\xE9p\xE9e"
+    IsStackable: 0
+    MaxStackSize: 1
+    BaseValue: 1
+    WeaponDamage: 7
+    HealthRestore: 0
+  - ID: 2
+    Name: PotionHP
+    InventoryIcon: {fileID: -1996087336, guid: 904b5c5fecd8a2b46a6affa065e82854, type: 3}
+    WorldPrefab: {fileID: 5357945710300512167, guid: 70a357dfef3a6824ab1fdb8ff22dd1b8, type: 3}
+    InventoryPrefab: {fileID: 4924855788387876812, guid: 11dae8a39d4e829439060f2b3cf595f1, type: 3}
+    Type: 1
+    Description: PotionHp
+    IsStackable: 1
+    MaxStackSize: 30
+    BaseValue: 1
+    WeaponDamage: 0
+    HealthRestore: 10

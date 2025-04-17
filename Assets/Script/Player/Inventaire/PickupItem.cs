@@ -2,93 +2,59 @@ using UnityEngine;
 
 public class PickupItem : MonoBehaviour
 {
-    public string itemName = "Objet";
-    public Sprite itemIcon;
-    public int itemValue = 1;
-    public string itemDescription = "Un objet ramassable";
+    [Header("Configuration de l'item")]
+    [Tooltip("ID de l'item dans la base de données")]
+    public int itemID;
     
-    // Est-ce que l'objet peut être cumulé ?
-    public bool isStackable = false;
-    
-    // Nouvelles propriétés pour l'équipement
-    public GameObject equipPrefab; // Prefab à instancier quand équipé
-    public bool canBeEquipped = true; // Est-ce que l'objet peut être équipé
-    
-    // Effet visuel lors du ramassage
+    [Header("Effets visuels")]
     public GameObject pickupEffectPrefab;
     
-    // Est-ce que l'objet a déjà été ramassé
+    // Variables privées
+    private string itemName;
     private bool hasBeenPickedUp = false;
+    
+    private void Start()
+    {
+        // Récupérer les données de l'item depuis la base de données
+        LoadItemData();
+    }
+    
+    private void LoadItemData()
+    {
+        if (ItemDatabase.Instance == null)
+        {
+            Debug.LogError("ItemDatabase non disponible");
+            return;
+        }
+        
+        ItemData data = ItemDatabase.Instance.GetItem(itemID);
+        if (data == null)
+        {
+            Debug.LogError($"Item avec ID {itemID} non trouvé dans la base de données");
+            return;
+        }
+        
+        // Mettre à jour les propriétés
+        itemName = data.Name;
+    }
+    
+    // Méthode pour obtenir le nom de l'item
+    public string GetItemName()
+    {
+        if (string.IsNullOrEmpty(itemName))
+        {
+            LoadItemData();
+        }
+        return itemName ?? "Item inconnu";
+    }
     
     private void OnTriggerEnter(Collider other)
     {
         // Vérifier si c'est le joueur qui touche l'objet
         if (other.CompareTag("Player") && !hasBeenPickedUp)
         {
-            PickUp();
-        }
-    }
-    
-    // Méthode pour ramasser l'objet
-    public void PickUp()
-    {
-        if (hasBeenPickedUp) return;
-        
-        Debug.Log($"Tentative de ramassage: {itemName}");
-        
-        // Vérifier si l'InventoryManager existe
-        if (InventoryManager.Instance != null)
-        {
-            // Vérifier si la hotbar est pleine avant d'ajouter l'objet
-            if (HotbarManager.Instance != null && HotbarManager.Instance.IsHotbarFull())
-            {
-                Debug.Log("Inventaire plein, impossible de ramasser l'objet!");
-                
-                // Afficher le message avec le nouveau système PromptText
-                if (PromptText.Instance != null)
-                {
-                    PromptText.Instance.ShowWarning("Inventaire plein!");
-                }
-                // Fallback vers l'ancien système si PromptText n'est pas disponible
-                else if (HotbarManager.Instance.inventoryFullMessage != null)
-                {
-                    HotbarManager.Instance.inventoryFullMessage.SetActive(true);
-                    HotbarManager.Instance.Invoke("HideInventoryFullMessage", 
-                                                 HotbarManager.Instance.messageDisplayTime);
-                }
-                
-                // Ne pas marquer l'objet comme ramassé et ne pas le détruire
-                return;
-            }
-            
-            // Si l'inventaire n'est pas plein, procéder normalement
-            hasBeenPickedUp = true;
-            InventoryManager.Instance.AddItem(this);
-            
-            // Jouer un effet si disponible
-            if (pickupEffectPrefab != null)
-            {
-                Instantiate(pickupEffectPrefab, transform.position, Quaternion.identity);
-            }
-            
-            // Si l'objet peut être équipé et que nous avons un PlayerInteraction, l'équiper automatiquement
-            if (canBeEquipped && equipPrefab != null)
-            {
-                PlayerInteraction playerInteraction = GameObject.FindGameObjectWithTag("Player")?.GetComponent<PlayerInteraction>();
-                if (playerInteraction != null)
-                {
-                    // Créer temporairement un PickupItemData pour l'équipement
-                    PickupItemData itemData = new PickupItemData(this);
-                    playerInteraction.EquipItem(itemData);
-                }
-            }
-            
-            // Détruire l'objet dans le monde
-            Destroy(gameObject);
-        }
-        else
-        {
-            Debug.LogError("InventoryManager non trouvé ! Impossible d'ajouter l'objet à l'inventaire.");
+            // La logique de ramassage est maintenant gérée par le PlayerController
+            // pour une meilleure séparation des responsabilités
         }
     }
 }

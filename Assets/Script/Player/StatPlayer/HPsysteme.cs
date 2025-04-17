@@ -1,4 +1,4 @@
-using UnityEngine;
+/*using UnityEngine;
 using UnityEngine.UI;
 
 public class HealthBarController : MonoBehaviour
@@ -97,4 +97,4 @@ public class HealthBarController : MonoBehaviour
             hpBarImage.fillAmount = currentHealth;
         }
     }
-}
+}*/
