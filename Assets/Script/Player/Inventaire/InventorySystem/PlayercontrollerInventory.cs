@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using System.Collections;
 
 public class PlayerController : MonoBehaviour
 {
@@ -11,6 +12,11 @@ public class PlayerController : MonoBehaviour
     
     [Header("Équipement")]
     public Transform handTransform;
+    
+    [Header("Messages")]
+    public GameObject messagePanel; // Nouveau panel pour afficher les messages système
+    public TMP_Text messageText;    // Texte du message
+    public float messageDisplayTime = 2f; // Durée d'affichage du message
     
     [Header("Input Configuration")]
     public KeyCode[] hotbarKeys = new KeyCode[8] 
@@ -39,6 +45,10 @@ public class PlayerController : MonoBehaviour
         // Désactiver le prompt au démarrage
         if (pickupPrompt != null)
             pickupPrompt.SetActive(false);
+            
+        // Désactiver le panel de message au démarrage
+        if (messagePanel != null)
+            messagePanel.SetActive(false);
         
         // Vérifier si handTransform est configuré
         if (handTransform == null)
@@ -96,8 +106,25 @@ public class PlayerController : MonoBehaviour
                 UseEquippedItem();
             }
         }
+
+         CheckEquippedItemExists();
     }
     
+    private void CheckEquippedItemExists()
+    {
+        // Si un item est équipé mais qu'il n'existe plus dans l'inventaire, le déséquiper
+        if (currentEquippedItem != null && InventoryManager.Instance != null)
+        {
+            // Vérifier que l'item existe encore dans l'inventaire
+            int quantity = InventoryManager.Instance.GetItemQuantity(currentEquippedItem.itemID);
+            if (quantity <= 0)
+            {
+            Debug.Log($"L'item équipé {currentEquippedItem.Name} n'existe plus dans l'inventaire, déséquipement automatique");
+            UnequipCurrentItem();
+            }
+        }
+    }
+
     // Vérifier si le joueur regarde un objet interactable
     private void CheckForInteractable()
     {
@@ -186,6 +213,35 @@ public class PlayerController : MonoBehaviour
         }
     }
     
+    // Afficher un message temporaire
+    private void ShowMessage(string message)
+    {
+        if (messagePanel != null && messageText != null)
+        {
+            // Définir le texte du message
+            messageText.text = message;
+            
+            // Activer le panel
+            messagePanel.SetActive(true);
+            
+            // Démarrer la coroutine pour cacher le message après un délai
+            StartCoroutine(HideMessageAfterDelay());
+        }
+        else
+        {
+            Debug.LogWarning("messagePanel ou messageText non configuré!");
+        }
+    }
+    
+    // Coroutine pour cacher le message après un délai
+    private IEnumerator HideMessageAfterDelay()
+    {
+        yield return new WaitForSeconds(messageDisplayTime);
+        
+        if (messagePanel != null)
+            messagePanel.SetActive(false);
+    }
+    
     // Gestion des touches de hotbar
     private void HandleHotbarInput()
     {
@@ -196,6 +252,7 @@ public class PlayerController : MonoBehaviour
             if (Input.GetKeyDown(hotbarKeys[i]))
             {
                 InventoryManager.Instance.SelectSlot(i);
+                Debug.Log($"Dans le slot hotbarKeys[{i}]");
                 break;
             }
         }
@@ -234,6 +291,8 @@ public class PlayerController : MonoBehaviour
         
         if (item == null || handTransform == null) return;
         
+        Debug.Log($"Équipement de l'item: {item.Name}, Type: {item.Type}, ID: {item.itemID}");
+        
         // Obtenir le prefab à instancier
         GameObject prefabToInstantiate = item.EquipPrefab;
         
@@ -254,7 +313,7 @@ public class PlayerController : MonoBehaviour
         // Stocker les données de l'item équipé
         currentEquippedItem = item;
         
-        Debug.Log($"Item équipé: {item.Name}");
+        Debug.Log($"Item équipé avec succès: {item.Name}, Type: {item.Type}");
     }
     
     // Déséquiper l'item actuel
@@ -307,22 +366,29 @@ public class PlayerController : MonoBehaviour
     // Utiliser l'item actuellement équipé
     public void UseEquippedItem()
     {
-        if (currentEquippedItem == null) return;
+        if (currentEquippedItem == null)
+        {
+            Debug.Log("Aucun item équipé à utiliser");
+            return;
+        }
         
-        Debug.Log($"Utilisation de l'item: {currentEquippedItem.Name}");
+        Debug.Log($"Utilisation de l'item: {currentEquippedItem.Name}, Type: {currentEquippedItem.Type}");
         
         // Comportement spécifique selon le type d'item
         switch (currentEquippedItem.Type)
         {
             case ItemType.Weapon:
+                Debug.Log("Utilisation de l'arme");
                 UseWeapon(currentEquippedItem);
                 break;
                 
             case ItemType.Consumable:
+                Debug.Log("Utilisation du consommable");
                 UseConsumable(currentEquippedItem);
                 break;
                 
             case ItemType.Equipment:
+                Debug.Log("Utilisation de l'équipement");
                 UseEquipment(currentEquippedItem);
                 break;
                 
@@ -349,40 +415,41 @@ public class PlayerController : MonoBehaviour
     // Utiliser un consommable
     private void UseConsumable(ItemInstance consumable)
     {
-        Debug.Log($"Consommation de {consumable.Name}");
+        Debug.Log($"Tentative de consommation de {consumable.Name}");
         
-        // Appliquer l'effet du consommable
+        // Vérifier si l'effet du consommable peut être appliqué
         if (consumable.Data.HealthRestore > 0 && playerHealth != null)
         {
+            // Vérifier si les HP sont déjà au maximum
+            if (playerHealth.IsFullHealth())
+            {
+                Debug.Log("Santé déjà au maximum, consommable non utilisé");
+                ShowMessage("Votre santé est déjà au maximum!");
+                return;
+            }
+            
             // Restaurer de la santé
             float healthAmount = consumable.Data.HealthRestore;
             Debug.Log($"Santé restaurée: {healthAmount}");
             
             playerHealth.RestoreHealth(healthAmount);
             
+            // Stocker l'ID de l'item avant de le supprimer
+            int itemID = consumable.itemID;
+            
             // Réduire la quantité (supprimer l'item)
             if (InventoryManager.Instance != null)
             {
-                InventoryManager.Instance.RemoveItem(consumable.itemID, 1);
+                // Vérifier la quantité avant suppression
+                int currentQuantity = InventoryManager.Instance.GetItemQuantity(itemID);
                 
-                // Si c'était l'item équipé, le déséquiper (car il a été consommé)
-                if (currentEquippedItem != null && currentEquippedItem.itemID == consumable.itemID)
+                // Supprimer l'item de l'inventaire
+                InventoryManager.Instance.RemoveItem(itemID, 1);
+                
+                // Si c'était le dernier item et qu'il était équipé, le déséquiper manuellement
+                if (currentQuantity <= 1 && currentEquippedItem != null && currentEquippedItem.itemID == itemID)
                 {
-                    // Déséquiper l'item
                     UnequipCurrentItem();
-                    
-                    // Désélectionner le slot si nécessaire
-                    int currentSlot = InventoryManager.Instance.GetCurrentSelectedSlot();
-                    if (currentSlot >= 0)
-                    {
-                        // Vérifier si le slot est maintenant vide, si oui, désélectionner
-                        if (InventoryManager.Instance.GetItemAtSlot(currentSlot) == null)
-                        {
-                            // Option 1: Laisser le slot sélectionné mais vide
-                            // Option 2: Désélectionner le slot (moins courant, mais possible)
-                            // InventoryManager.Instance.SelectSlot(-1);
-                        }
-                    }
                 }
             }
         }

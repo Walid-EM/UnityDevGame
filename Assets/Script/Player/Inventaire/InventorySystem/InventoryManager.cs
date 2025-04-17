@@ -57,40 +57,67 @@ public class InventoryManager : MonoBehaviour
     }
     
     // ------------------- Méthodes d'inventaire général -------------------
+
+// Ajouter un item à l'inventaire
+public void AddItem(int itemID, int quantity = 1)
+{
+    ItemData itemData = ItemDatabase.Instance.GetItem(itemID);
+    if (itemData == null) return;
     
-    // Ajouter un item à l'inventaire
-    public void AddItem(int itemID, int quantity = 1)
+    Debug.Log($"Ajout de {quantity}x {itemData.Name} (ID: {itemID}) à l'inventaire");
+    
+    // Vérifier si l'item existe déjà dans l'inventaire
+    bool itemFound = false;
+    
+    // Essayer d'empiler si l'item est empilable
+    if (itemData.IsStackable)
     {
-        ItemData itemData = ItemDatabase.Instance.GetItem(itemID);
-        if (itemData == null) return;
-        
-        Debug.Log($"Ajout de {quantity}x {itemData.Name} (ID: {itemID}) à l'inventaire");
-        
-        // Essayer d'empiler si l'item est empilable
-        if (itemData.IsStackable)
+        // Chercher dans l'inventaire global
+        foreach (var item in inventory)
         {
-            // Chercher dans l'inventaire
-            foreach (var item in inventory)
+            if (item.itemID == itemID)
             {
-                if (item.itemID == itemID)
+                itemFound = true;
+                item.quantity += quantity;
+                Debug.Log($"Quantité augmentée à {item.quantity}");
+                
+                // Mettre à jour les UI des slots contenant cet item
+                for (int i = 0; i < hotbarItems.Count; i++)
                 {
-                    item.quantity += quantity;
-                    Debug.Log($"Quantité augmentée à {item.quantity}");
-                    
-                    // Mettre à jour l'UI de la hotbar si nécessaire
-                    UpdateHotbarUI();
-                    return;
+                    if (hotbarItems[i] != null && hotbarItems[i].itemID == itemID)
+                    {
+                        UpdateSlotUI(i);
+                        
+                        // Si c'est le slot actuellement sélectionné, réactiver l'équipement
+                        if (i == selectedSlot)
+                        {
+                            OnItemEquipped?.Invoke(hotbarItems[i]);
+                        }
+                    }
                 }
+                
+                break;
             }
         }
-        
-        // Si on arrive ici, l'item n'a pas pu être empilé
+    }
+    
+    // Si l'item n'a pas été trouvé, créer une nouvelle instance
+    if (!itemFound)
+    {
         ItemInstance newItem = new ItemInstance(itemID, quantity);
         inventory.Add(newItem);
         
-        // Essayer d'ajouter l'item à la hotbar
+        // Ajouter l'item à la hotbar
         AddItemToHotbar(newItem);
+        
+        // Si le slot où l'item a été ajouté est le slot sélectionné, équiper l'item
+        int slotIndex = GetHotbarIndexByUniqueID(newItem.uniqueID);
+        if (slotIndex >= 0 && slotIndex == selectedSlot)
+        {
+            OnItemEquipped?.Invoke(newItem);
+        }
     }
+}
     
     // Vérifier si l'inventaire contient un item spécifique
     public bool HasItem(int itemID)
@@ -111,70 +138,117 @@ public class InventoryManager : MonoBehaviour
     }
     
     // Supprimer un item de l'inventaire par son ID unique
-    public bool RemoveItemByUniqueID(string uniqueID)
+    public bool RemoveItem(int itemID, int quantity = 1)
+{
+    if (quantity <= 0) return false;
+    
+    Debug.Log($"Tentative de suppression de {quantity}x item ID: {itemID}");
+    int remainingToRemove = quantity;
+    
+    // Chercher tous les items correspondants
+    List<ItemInstance> matchingItems = inventory.FindAll(item => item.itemID == itemID);
+    
+    if (matchingItems.Count == 0)
     {
-        if (string.IsNullOrEmpty(uniqueID)) return false;
-        
-        // Chercher dans l'inventaire
-        int index = inventory.FindIndex(item => item.uniqueID == uniqueID);
-        if (index >= 0)
-        {
-            // Supprimer de la hotbar d'abord
-            RemoveItemFromHotbarByUniqueID(uniqueID);
-            
-            // Puis supprimer de l'inventaire
-            Debug.Log($"Suppression de {inventory[index].Name} (ID unique: {uniqueID})");
-            inventory.RemoveAt(index);
-            return true;
-        }
-        
+        Debug.Log($"Aucun item avec ID {itemID} trouvé dans l'inventaire");
         return false;
     }
     
-    // Supprimer un item par son ID de base de données
-    public bool RemoveItem(int itemID, int quantity = 1)
+    // Créer une copie car nous allons modifier pendant l'itération
+    List<ItemInstance> itemsToProcess = new List<ItemInstance>(matchingItems);
+    
+    foreach (var item in itemsToProcess)
     {
-        if (quantity <= 0) return false;
-        
-        int remainingToRemove = quantity;
-        
-        // Chercher tous les items correspondants
-        List<ItemInstance> matchingItems = inventory.FindAll(item => item.itemID == itemID);
-        
-        if (matchingItems.Count == 0) return false;
-        
-        foreach (var item in matchingItems)
+        if (item.IsStackable)
         {
-            if (item.IsStackable)
+            Debug.Log($"Traitement de l'item empilable: {item.Name}, Quantité: {item.quantity}");
+            if (item.quantity <= remainingToRemove)
             {
-                if (item.quantity <= remainingToRemove)
+                // Supprimer l'item complètement
+                remainingToRemove -= item.quantity;
+                Debug.Log($"Suppression complète de l'item (quantité: {item.quantity})");
+                
+                // Vérifier si cet item est dans la hotbar
+                int hotbarIndex = GetHotbarIndexByUniqueID(item.uniqueID);
+                if (hotbarIndex >= 0)
                 {
-                    // Supprimer l'item completement
-                    remainingToRemove -= item.quantity;
-                    RemoveItemByUniqueID(item.uniqueID);
-                }
-                else
-                {
-                    // Réduire la quantité
-                    item.quantity -= remainingToRemove;
-                    remainingToRemove = 0;
+                    Debug.Log($"L'item est dans la hotbar au slot {hotbarIndex}");
                     
-                    // Mettre à jour l'UI
-                    UpdateHotbarUI();
+                    // Le slot deviendra vide car c'était le dernier de cet item
+                    hotbarItems[hotbarIndex] = null;
+                    UpdateSlotUI(hotbarIndex);
+                    
+                    // Mettre à jour le prochain slot disponible
+                    if (nextAvailableSlot == -1 || hotbarIndex < nextAvailableSlot)
+                        nextAvailableSlot = hotbarIndex;
+                        
+                    // Si c'était le slot sélectionné, déclencher un événement de déséquipement
+                    if (hotbarIndex == selectedSlot)
+                    {
+                        OnItemUnequipped?.Invoke();
+                    }
                 }
+                
+                // Supprimer l'item de l'inventaire global
+                inventory.Remove(item);
             }
             else
             {
-                // Item non empilable
-                RemoveItemByUniqueID(item.uniqueID);
-                remainingToRemove--;
+                // Réduire la quantité
+                item.quantity -= remainingToRemove;
+                Debug.Log($"Réduction de la quantité à {item.quantity}");
+                remainingToRemove = 0;
+                
+                // Mettre à jour l'UI
+                UpdateHotbarUI();
+            }
+        }
+        else
+        {
+            // Item non empilable
+            Debug.Log($"Suppression de l'item non empilable: {item.Name}");
+            
+            // Vérifier si cet item est dans la hotbar
+            int hotbarIndex = GetHotbarIndexByUniqueID(item.uniqueID);
+            if (hotbarIndex >= 0)
+            {
+                hotbarItems[hotbarIndex] = null;
+                UpdateSlotUI(hotbarIndex);
+                
+                // Mettre à jour le prochain slot disponible
+                if (nextAvailableSlot == -1 || hotbarIndex < nextAvailableSlot)
+                    nextAvailableSlot = hotbarIndex;
+                    
+                // Si c'était le slot sélectionné, déclencher un événement de déséquipement
+                if (hotbarIndex == selectedSlot)
+                {
+                    OnItemUnequipped?.Invoke();
+                }
             }
             
-            if (remainingToRemove <= 0) break;
+            inventory.Remove(item);
+            remainingToRemove--;
         }
         
-        return remainingToRemove < quantity;
+        if (remainingToRemove <= 0) break;
     }
+    
+    Debug.Log($"Suppression terminée. Reste à supprimer: {remainingToRemove}");
+    return remainingToRemove < quantity;
+}
+
+// Méthode auxiliaire pour trouver l'index d'un item dans la hotbar
+private int GetHotbarIndexByUniqueID(string uniqueID)
+{
+    for (int i = 0; i < hotbarItems.Count; i++)
+    {
+        if (hotbarItems[i] != null && hotbarItems[i].uniqueID == uniqueID)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
     
     // ------------------- Méthodes de gestion de la Hotbar -------------------
     
@@ -360,7 +434,7 @@ public class InventoryManager : MonoBehaviour
         
         // Équiper l'item
         ItemInstance item = GetItemAtSlot(selectedSlot);
-        if (item != null && item.CanBeEquipped)
+        if (item != null && (item.CanBeEquipped || item.Type == ItemType.Consumable))
         {
             // Notifier les listeners
             OnItemEquipped?.Invoke(item);

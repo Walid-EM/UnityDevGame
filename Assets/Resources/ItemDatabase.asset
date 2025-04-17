@@ -41,7 +41,7 @@ MonoBehaviour:
     Name: PotionHP
     InventoryIcon: {fileID: -1996087336, guid: 904b5c5fecd8a2b46a6affa065e82854, type: 3}
     WorldPrefab: {fileID: 5357945710300512167, guid: 70a357dfef3a6824ab1fdb8ff22dd1b8, type: 3}
-    InventoryPrefab: {fileID: 4924855788387876812, guid: 11dae8a39d4e829439060f2b3cf595f1, type: 3}
+    InventoryPrefab: {fileID: 5357945710300512167, guid: 0f9c030d8acefdb49a747dc37eccd4f4, type: 3}
     Type: 1
     Description: PotionHp
     IsStackable: 1

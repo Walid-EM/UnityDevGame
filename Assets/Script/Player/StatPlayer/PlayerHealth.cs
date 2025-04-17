@@ -1,139 +1,165 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
+using System.Collections;
 
 public class PlayerHealth : MonoBehaviour
 {
-    [Header("Configuration")]
+    [Header("Paramètres de santé")]
     public float maxHealth = 100f;
     public float currentHealth;
     
-    [Header("UI")]
-    public Image healthBarImage; // Référence à l'image qui sera masquée (Mask)
-    public TextMeshProUGUI healthText; // Optionnel
+    [Header("Interface utilisateur")]
+    public Image healthBarImage; // Changé de Slider à Image
+    public Image damageFlashImage;
     
-    [Header("Effects")]
-    public GameObject damageEffect;
-    public GameObject healEffect;
+    [Header("Effets")]
+    public float flashSpeed = 5f;
+    public Color flashColor = new Color(1f, 0f, 0f, 0.3f);
     
-    // RectTransform de la barre de santé (alternative à fillAmount)
-    private RectTransform healthBarRect;
-    private float initialWidth;
+    [Header("Sons")]
+    public AudioClip damageSound;
+    public AudioClip healSound;
+    
+    private AudioSource audioSource;
+    private bool isFlashing = false;
     
     private void Start()
     {
+        // Initialiser la santé
         currentHealth = maxHealth;
         
-        // Vérifiez si healthBarImage est assigné
-        if (healthBarImage == null)
-        {
-            Debug.LogError("healthBarImage n'est pas assigné! Veuillez le configurer dans l'inspecteur.");
-        }
-        else
-        {
-            Debug.Log("healthBarImage est correctement assigné: " + healthBarImage.name);
-            
-            // Initialiser le RectTransform
-            healthBarRect = healthBarImage.rectTransform;
-            
-            if (healthBarRect != null)
-            {
-                initialWidth = healthBarRect.sizeDelta.x;
-                Debug.Log("RectTransform initialisé. Largeur initiale: " + initialWidth);
-            }
-            else
-            {
-                Debug.LogError("healthBarRect est null malgré une image valide!");
-            }
-        }
-        
-        UpdateHealthUI();
-        
-        // Test automatique du système après 1 seconde
-        Invoke("TestHealthSystem", 1.0f);
-    }
-    
-    public void TakeDamage(float amount)
-    {
-        float oldHealth = currentHealth;
-        currentHealth = Mathf.Max(0, currentHealth - amount);
-        Debug.Log($"TakeDamage appelé: {amount} de dégâts. Santé: {oldHealth} -> {currentHealth}/{maxHealth}");
-        
-        UpdateHealthUI();
-        
-        if (damageEffect != null)
-            Instantiate(damageEffect, transform.position, Quaternion.identity);
-            
-        if (currentHealth <= 0)
-            OnPlayerDeath();
-    }
-    
-    public void RestoreHealth(float amount)
-    {
-        float oldHealth = currentHealth;
-        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
-        Debug.Log($"RestoreHealth appelé: {amount} de santé restaurée. Santé: {oldHealth} -> {currentHealth}/{maxHealth}");
-        
-        UpdateHealthUI();
-        
-        if (healEffect != null)
-            Instantiate(healEffect, transform.position, Quaternion.identity);
-    }
-    
-    private void UpdateHealthUI()
-    {
-        // Calculer le pourcentage de santé (vérifiez que maxHealth n'est pas 0)
-        float healthPercentage = (maxHealth > 0) ? currentHealth / maxHealth : 0;
-        
-        Debug.Log($"UpdateHealthUI appelé: currentHealth={currentHealth}, maxHealth={maxHealth}, pourcentage={healthPercentage}");
-        
-        // N'utilisez qu'une seule méthode à la fois pour déboguer
+        // Configurer l'interface utilisateur
         if (healthBarImage != null)
         {
-            float oldFillAmount = healthBarImage.fillAmount;
-            healthBarImage.fillAmount = healthPercentage;
-            Debug.Log($"fillAmount mis à jour: {oldFillAmount} -> {healthPercentage} pour l'image {healthBarImage.name}");
-        }
-        else
-        {
-            Debug.LogError("healthBarImage est null lors de l'appel à UpdateHealthUI!");
+            // S'assurer que l'image est configurée en mode fill
+            healthBarImage.type = Image.Type.Filled;
+            // Mettre à jour la barre de santé
+            UpdateUI();
         }
         
-        // Mettre à jour par RectTransform aussi par sécurité
-        if (healthBarRect != null)
+        // Récupérer le composant audio
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null && (damageSound != null || healSound != null))
         {
-            Vector2 oldSize = healthBarRect.sizeDelta;
-            Vector2 newSize = healthBarRect.sizeDelta;
-            newSize.x = initialWidth * healthPercentage;
-            healthBarRect.sizeDelta = newSize;
-            Debug.Log($"Largeur RectTransform mise à jour: {oldSize.x} -> {newSize.x}");
+            audioSource = gameObject.AddComponent<AudioSource>();
         }
         
-        // Mettre à jour le texte
-        if (healthText != null)
-            healthText.text = $"{Mathf.Round(currentHealth)}/{maxHealth}";
+        // Initialiser l'effet de flash
+        if (damageFlashImage != null)
+        {
+            damageFlashImage.color = new Color(flashColor.r, flashColor.g, flashColor.b, 0f);
+        }
     }
     
-    private void OnPlayerDeath()
+    // Subir des dégâts
+    public void TakeDamage(float amount)
+    {
+        if (amount <= 0) return;
+        
+        currentHealth -= amount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        
+        Debug.Log($"Santé réduite à {currentHealth}/{maxHealth}");
+        
+        // Mettre à jour l'interface
+        UpdateUI();
+        
+        // Jouer un son
+        if (audioSource != null && damageSound != null)
+        {
+            audioSource.PlayOneShot(damageSound);
+        }
+        
+        // Afficher l'effet de flash
+        if (damageFlashImage != null && !isFlashing)
+        {
+            StartCoroutine(DamageFlashEffect());
+        }
+        
+        // Vérifier si le joueur est mort
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+    }
+    
+    // Restaurer de la santé
+    public void RestoreHealth(float amount)
+    {
+        if (amount <= 0) return;
+        
+        float oldHealth = currentHealth;
+        currentHealth += amount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        
+        Debug.Log($"Santé augmentée à {currentHealth}/{maxHealth}");
+        
+        // Jouer un son seulement si la santé a été restaurée
+        if (currentHealth > oldHealth && audioSource != null && healSound != null)
+        {
+            audioSource.PlayOneShot(healSound);
+        }
+        
+        // Mettre à jour l'interface
+        UpdateUI();
+    }
+    
+    // Vérifier si les points de vie sont au maximum
+    public bool IsFullHealth()
+    {
+        return currentHealth >= maxHealth;
+    }
+    
+    // Mettre à jour l'interface utilisateur
+    private void UpdateUI()
+    {
+        if (healthBarImage != null)
+        {
+            // Calculer le ratio de santé actuel
+            float healthRatio = currentHealth / maxHealth;
+            // Mettre à jour le fill amount de l'image
+            healthBarImage.fillAmount = healthRatio;
+        }
+    }
+    
+    // Effet de flash pour les dégâts
+    private IEnumerator DamageFlashEffect()
+    {
+        isFlashing = true;
+        
+        // Définir la couleur avec alpha complet
+        damageFlashImage.color = flashColor;
+        
+        // Faire diminuer l'alpha progressivement
+        while (damageFlashImage.color.a > 0)
+        {
+            damageFlashImage.color = new Color(
+                damageFlashImage.color.r,
+                damageFlashImage.color.g,
+                damageFlashImage.color.b,
+                damageFlashImage.color.a - (Time.deltaTime * flashSpeed)
+            );
+            
+            yield return null;
+        }
+        
+        // Garantir que l'alpha est à 0
+        damageFlashImage.color = new Color(
+            damageFlashImage.color.r,
+            damageFlashImage.color.g,
+            damageFlashImage.color.b,
+            0f
+        );
+        
+        isFlashing = false;
+    }
+    
+    // Gestion de la mort du joueur
+    private void Die()
     {
         Debug.Log("Le joueur est mort!");
-        // Implémentez la logique de mort ici
-    }
-    private void TestHealing()
-    {
-        RestoreHealth(maxHealth * 0.1f);
-    }
-    
-    // Pour tests manuels dans l'éditeur
-    [ContextMenu("Infliger 10 dégâts")]
-    private void DebugTakeDamage()
-    {
-        TakeDamage(10f);
-    }
-    
-    [ContextMenu("Restaurer 10 santé")]
-    private void DebugRestoreHealth()
-    {
-        RestoreHealth(10f);
+        
+        // Implémenter ici la logique de mort du joueur
+        // Par exemple, animation de mort, écran de game over, etc.
     }
 }
