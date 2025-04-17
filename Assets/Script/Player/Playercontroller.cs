@@ -14,9 +14,9 @@ public class PlayerController : MonoBehaviour
     public Transform handTransform;
     
     [Header("Messages")]
-    public GameObject messagePanel; // Nouveau panel pour afficher les messages système
-    public TMP_Text messageText;    // Texte du message
-    public float messageDisplayTime = 2f; // Durée d'affichage du message
+    public GameObject messagePanel;
+    public TMP_Text messageText;
+    public float messageDisplayTime = 2f;
     
     [Header("Input Configuration")]
     public KeyCode[] hotbarKeys = new KeyCode[8] 
@@ -31,12 +31,23 @@ public class PlayerController : MonoBehaviour
         KeyCode.Alpha8 
     };
     
+    [Header("Mouvement")]
+    public float walkSpeed = 5f;
+    public float runSpeed = 10f;
+    public float staminaUseRate = 10f; // Consommation de stamina par seconde lors de la course
+    public float jumpStaminaCost = 15f; // Consommation de stamina pour un saut
+    
+    [Header("Combat")]
+    public float weaponManaCost = 5f; // Coût en mana pour utiliser une arme
+    
     // Variables privées
     private Camera playerCamera;
     private PickupItem currentTarget;
     private GameObject currentEquippedObject;
     private ItemInstance currentEquippedItem;
-    private PlayerHealth playerHealth; // Référence au système de santé
+    private PlayerStats playerStats; // Référence au système de statistiques
+    private float currentSpeed;
+    private bool isRunning = false;
     
     private void Start()
     {
@@ -61,12 +72,17 @@ public class PlayerController : MonoBehaviour
             InventoryManager.Instance.OnItemUnequipped += UnequipCurrentItem;
         }
         
-        // Récupérer la référence au système de santé
-        playerHealth = GetComponent<PlayerHealth>();
-        if (playerHealth == null)
+        // Récupérer la référence au système de statistiques
+        playerStats = GetComponent<PlayerStats>();
+        if (playerStats == null)
         {
-            Debug.LogWarning("PlayerHealth non trouvé! Les effets des items ne seront pas appliqués.");
+            Debug.LogWarning("PlayerStats non trouvé! Veuillez ajouter ce composant au joueur.");
+            // Essayer d'ajouter automatiquement le composant
+            playerStats = gameObject.AddComponent<PlayerStats>();
         }
+        
+        // Initialiser la vitesse
+        currentSpeed = walkSpeed;
     }
     
     private void OnDestroy()
@@ -107,7 +123,16 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-         CheckEquippedItemExists();
+        // Gestion de la course avec consommation de stamina
+        HandleRunning();
+        
+        // Gestion du saut avec consommation de stamina
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            JumpAction();
+        }
+
+        CheckEquippedItemExists();
     }
     
     private void CheckEquippedItemExists()
@@ -119,8 +144,8 @@ public class PlayerController : MonoBehaviour
             int quantity = InventoryManager.Instance.GetItemQuantity(currentEquippedItem.itemID);
             if (quantity <= 0)
             {
-            Debug.Log($"L'item équipé {currentEquippedItem.Name} n'existe plus dans l'inventaire, déséquipement automatique");
-            UnequipCurrentItem();
+                Debug.Log($"L'item équipé {currentEquippedItem.Name} n'existe plus dans l'inventaire, déséquipement automatique");
+                UnequipCurrentItem();
             }
         }
     }
@@ -167,6 +192,7 @@ public class PlayerController : MonoBehaviour
         if (InventoryManager.Instance != null && InventoryManager.Instance.IsHotbarFull())
         {
             Debug.Log("Inventaire plein, impossible de ramasser l'objet!");
+            ShowMessage("Inventaire plein!");
             // Le prompt restera affiché
             return;
         }
@@ -214,7 +240,7 @@ public class PlayerController : MonoBehaviour
     }
     
     // Afficher un message temporaire
-    private void ShowMessage(string message)
+    public void ShowMessage(string message)
     {
         if (messagePanel != null && messageText != null)
         {
@@ -252,7 +278,7 @@ public class PlayerController : MonoBehaviour
             if (Input.GetKeyDown(hotbarKeys[i]))
             {
                 InventoryManager.Instance.SelectSlot(i);
-                Debug.Log($"Dans le slot hotbarKeys[{i}]");
+                Debug.Log($"Slot sélectionné: {i}");
                 break;
             }
         }
@@ -309,6 +335,13 @@ public class PlayerController : MonoBehaviour
         
         // Configurer la physique
         ConfigureEquippedObjectPhysics(currentEquippedObject);
+        
+        // Si c'est une arme, configurer le WeaponSystem
+        WeaponSystem weaponSystem = currentEquippedObject.GetComponent<WeaponSystem>();
+        if (weaponSystem != null && item.Type == ItemType.Weapon)
+        {
+            weaponSystem.SetWeaponID(item.itemID);
+        }
         
         // Stocker les données de l'item équipé
         currentEquippedItem = item;
@@ -379,7 +412,7 @@ public class PlayerController : MonoBehaviour
         {
             case ItemType.Weapon:
                 Debug.Log("Utilisation de l'arme");
-                UseWeapon(currentEquippedItem);
+                UseWeapon();
                 break;
                 
             case ItemType.Consumable:
@@ -399,17 +432,43 @@ public class PlayerController : MonoBehaviour
     }
     
     // Utiliser une arme
-    private void UseWeapon(ItemInstance weapon)
+    private void UseWeapon()
     {
-        // Récupérer les dégâts depuis la base de données
-        float damage = weapon.Data.WeaponDamage;
-        Debug.Log($"Attaque avec {weapon.Name} ! Dégâts: {damage}");
+    // Utiliser le WeaponSystem si disponible
+    WeaponSystem weaponSystem = currentEquippedObject?.GetComponent<WeaponSystem>();
+    if (weaponSystem != null)
+    {
+        Debug.Log("[FIX] Avant appel à weaponSystem.Attack()");
         
-        // S'infliger des dégâts à soi-même
-        if (playerHealth != null && damage > 0)
+        // Le WeaponSystem gère la consommation de mana et les dégâts
+        bool attackResult = weaponSystem.Attack();
+        
+        Debug.Log($"[FIX] Résultat de l'attaque: {attackResult}");
+        
+        if (attackResult)
         {
-            playerHealth.TakeDamage(damage);
+            // Attaque réussie
+            Debug.Log("[FIX] Attaque effectuée avec succès!");
+            
+            // Force l'application des auto-dégâts si aucun ennemi n'est touché
+            if (playerStats != null)
+            {
+                // Valeur fixe pour le test
+                float testDamage = 5f;
+                Debug.Log($"[FIX] Application directe de {testDamage} dégâts de test");
+                playerStats.TakeDamage(testDamage);
+            }
         }
+        else
+        {
+            // Attaque échouée (pas assez de mana)
+            ShowMessage("Pas assez de mana!");
+        }
+    }
+    else
+    {
+        Debug.LogError("[FIX] Aucun WeaponSystem trouvé sur l'objet équipé!");
+    }
     }
     
     // Utiliser un consommable
@@ -417,23 +476,77 @@ public class PlayerController : MonoBehaviour
     {
         Debug.Log($"Tentative de consommation de {consumable.Name}");
         
-        // Vérifier si l'effet du consommable peut être appliqué
-        if (consumable.Data.HealthRestore > 0 && playerHealth != null)
+        // Vérifier si l'item a des effets
+        ItemData itemData = consumable.Data;
+        bool itemUsed = false;
+        
+        // Récupérer les statistiques du joueur
+        if (playerStats == null)
+        {
+            Debug.LogWarning("PlayerStats non trouvé! Les effets des items ne seront pas appliqués.");
+            return;
+        }
+        
+        // Restauration de santé
+        if (itemData.HealthRestore > 0)
         {
             // Vérifier si les HP sont déjà au maximum
-            if (playerHealth.IsFullHealth())
+            if (playerStats.IsFullHealth)
             {
-                Debug.Log("Santé déjà au maximum, consommable non utilisé");
-                ShowMessage("Votre santé est déjà au maximum!");
-                return;
+                Debug.Log("Santé déjà au maximum");
             }
-            
-            // Restaurer de la santé
-            float healthAmount = consumable.Data.HealthRestore;
-            Debug.Log($"Santé restaurée: {healthAmount}");
-            
-            playerHealth.RestoreHealth(healthAmount);
-            
+            else
+            {
+                // Restaurer de la santé
+                float healthAmount = itemData.HealthRestore;
+                Debug.Log($"Santé restaurée: {healthAmount}");
+                
+                playerStats.RestoreHealth(healthAmount);
+                itemUsed = true;
+            }
+        }
+        
+        // Restauration de mana
+        if (itemData.ManaRestore > 0)
+        {
+            // Vérifier si le mana est déjà au maximum
+            if (playerStats.IsFullMana)
+            {
+                Debug.Log("Mana déjà au maximum");
+            }
+            else
+            {
+                // Restaurer du mana
+                float manaAmount = itemData.ManaRestore;
+                Debug.Log($"Mana restauré: {manaAmount}");
+                
+                playerStats.RestoreMana(manaAmount);
+                itemUsed = true;
+            }
+        }
+        
+        // Restauration de faim
+        if (itemData.HungerRestore > 0)
+        {
+            // Vérifier si la faim est déjà au maximum
+            if (playerStats.IsFullHunger)
+            {
+                Debug.Log("Faim déjà au maximum");
+            }
+            else
+            {
+                // Restaurer de la faim
+                float hungerAmount = itemData.HungerRestore;
+                Debug.Log($"Faim restaurée: {hungerAmount}");
+                
+                playerStats.RestoreHunger(hungerAmount);
+                itemUsed = true;
+            }
+        }
+        
+        // Si au moins un effet a été appliqué, supprimer l'item
+        if (itemUsed)
+        {
             // Stocker l'ID de l'item avant de le supprimer
             int itemID = consumable.itemID;
             
@@ -453,6 +566,11 @@ public class PlayerController : MonoBehaviour
                 }
             }
         }
+        else
+        {
+            // Aucun effet n'a été appliqué
+            ShowMessage("Cet item n'a aucun effet sur vous actuellement.");
+        }
     }
     
     // Utiliser un équipement
@@ -462,5 +580,76 @@ public class PlayerController : MonoBehaviour
         
         // Implémenter l'utilisation d'équipement
         // Par exemple, activer une capacité spéciale
+    }
+    
+    // Gestion de la course avec consommation de stamina
+    private void HandleRunning()
+    {
+        if (playerStats == null) return;
+        
+        // Vérifier l'input Sprint (par exemple, Shift)
+        bool sprintInput = Input.GetKey(KeyCode.LeftShift);
+        
+        // Si le joueur essaie de courir et a de la stamina
+        if (sprintInput && playerStats.CurrentStamina > 0)
+        {
+            // Consommer de la stamina
+            float staminaToUse = staminaUseRate * Time.deltaTime;
+            if (playerStats.UseStamina(staminaToUse))
+            {
+                isRunning = true;
+                currentSpeed = runSpeed;
+            }
+            else
+            {
+                // Si pas assez de stamina, marcher
+                isRunning = false;
+                currentSpeed = walkSpeed;
+            }
+        }
+        else
+        {
+            // Si le joueur ne veut pas courir ou n'a plus de stamina
+            isRunning = false;
+            currentSpeed = walkSpeed;
+        }
+    }
+    
+    // Méthode pour vérifier si le joueur peut réaliser une action qui consomme de la stamina
+    public bool CanPerformStaminaAction(float staminaCost)
+    {
+        if (playerStats == null) return false;
+        
+        return playerStats.CurrentStamina >= staminaCost;
+    }
+    
+    // Méthode pour effectuer une action qui consomme de la stamina
+    public bool PerformStaminaAction(float staminaCost)
+    {
+        if (playerStats == null) return false;
+        
+        return playerStats.UseStamina(staminaCost);
+    }
+    
+    // Action de saut consommant de la stamina
+    public void JumpAction()
+    {
+        if (CanPerformStaminaAction(jumpStaminaCost))
+        {
+            // Exécuter le saut
+            PerformStaminaAction(jumpStaminaCost);
+            Debug.Log($"Saut effectué! Stamina consommée: {jumpStaminaCost}");
+            
+            // Code d'animation du saut ou autre logique ici...
+            // Par exemple:
+            // characterController.Jump();
+            // animator.SetTrigger("Jump");
+        }
+        else
+        {
+            // Pas assez de stamina pour sauter
+            Debug.Log("Pas assez d'énergie pour sauter!");
+            ShowMessage("Pas assez d'énergie!");
+        }
     }
 }

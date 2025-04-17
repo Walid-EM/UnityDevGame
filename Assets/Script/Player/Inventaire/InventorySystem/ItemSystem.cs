@@ -111,6 +111,8 @@ public class ItemData
     [Header("Propriétés spécifiques")]
     public float WeaponDamage; // Pour les armes
     public float HealthRestore; // Pour les consommables de type santé
+    public float ManaRestore; // Pour les consommables de type mana
+    public float HungerRestore; // Pour les consommables de type nourriture
     
     // Constructeur vide
     public ItemData() { }
@@ -132,6 +134,8 @@ public class ItemData
             this.BaseValue = source.BaseValue;
             this.WeaponDamage = source.WeaponDamage;
             this.HealthRestore = source.HealthRestore;
+            this.ManaRestore = source.ManaRestore;
+            this.HungerRestore = source.HungerRestore;
         }
     }
     

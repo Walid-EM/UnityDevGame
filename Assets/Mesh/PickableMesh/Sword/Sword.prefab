@@ -81,6 +81,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fe2689d648ceb554f8f2b54d8508b44f, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5371394254054568018}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fe2689d648ceb554f8f2b54d8508b44f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1595450623143364924}
   m_SourcePrefab: {fileID: 100100000, guid: fe2689d648ceb554f8f2b54d8508b44f, type: 3}
 --- !u!1 &4924855788387876812 stripped
 GameObject:
@@ -149,3 +152,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemID: 1
   pickupEffectPrefab: {fileID: 0}
+--- !u!114 &1595450623143364924
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4924855788387876812}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ca40f3063ec99947ae7c17c9ceb1695, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  weaponID: -1
+  attackRange: 2
+  attackableLayers:
+    serializedVersion: 2
+    m_Bits: 256
+  attackPoint: {fileID: 0}
+  baseManaCost: 5
+  manaCostMultiplier: 1
+  scaleManaCostWithDamage: 1
+  hitEffectPrefab: {fileID: 0}
+  swingEffectPrefab: {fileID: 0}
+  swingSound: {fileID: 0}
+  hitSound: {fileID: 0}
+  noManaSound: {fileID: 0}
