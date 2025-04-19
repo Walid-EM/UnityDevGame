@@ -35,6 +35,10 @@ public class WeaponSystem : MonoBehaviour
     public float Damage => weaponData != null ? weaponData.WeaponDamage : 0f;
     public float ManaCost => CalculateManaCost();
     
+    // Nouvelles propriétés exposées
+    public int WeaponID => weaponID;
+    public ItemData WeaponData => weaponData;
+    
     private void Start()
     {
         // Trouver les références nécessaires
@@ -60,10 +64,6 @@ public class WeaponSystem : MonoBehaviour
             {
                 Debug.LogError($"L'item avec ID {weaponID} n'est pas une arme!");
             }
-            else 
-            {
-                Debug.Log($"[DIAGNOSTIC] Arme chargée: ID={weaponID}, Nom={weaponData.Name}, Dégâts={weaponData.WeaponDamage}");
-            }
         }
         
         // Vérifier que le point d'attaque est configuré
@@ -76,45 +76,65 @@ public class WeaponSystem : MonoBehaviour
         // Vérifier que playerStats est bien trouvé
         if (playerStats == null)
         {
-            Debug.LogError("PlayerStats non trouvé pendant l'initialisation de WeaponSystem!");
+            Debug.LogWarning("PlayerStats non trouvé pendant l'initialisation de WeaponSystem. Cela n'est pas une erreur critique.");
         }
         else
         {
-            Debug.Log($"[DIAGNOSTIC] PlayerStats correctement référencé dans WeaponSystem. Health={playerStats.CurrentHealth}/{playerStats.MaxHealth}");
+            // Notifier PlayerStats qu'une arme a été équipée, sans déclencher d'attaque
+            // IMPORTANT: Ne pas consommer de mana ici
+            playerStats.UpdateEquippedWeapon();
         }
     }
     
     /// <summary>
     /// Exécute une attaque avec l'arme
     /// </summary>
-    /// <returns>True si l'attaque a été effectuée</returns>
     public bool Attack()
     {
-        Debug.Log($"=========== DÉBUT DIAGNOSTIC ATTAQUE ===========");
-        
+        Debug.Log($"[WEAPON DEBUG] WeaponSystem.Attack() appelé");
+
+        // Chercher les playerStats si non trouvés précédemment
         if (playerStats == null)
         {
-            Debug.LogError("[DIAGNOSTIC] PlayerStats est null dans Attack()!");
-            return false;
+            playerStats = GetComponentInParent<PlayerStats>();
+            if (playerStats == null)
+            {
+                Debug.LogWarning("PlayerStats non trouvé dans Attack(). L'attaque peut fonctionner sans consommer de mana.");
+                // On continue l'attaque sans consommer de mana
+            }
         }
         
         if (weaponData == null)
         {
-            Debug.LogError("[DIAGNOSTIC] Données de l'arme non chargées!");
+            Debug.LogError("Données de l'arme non chargées!");
             return false;
         }
-        
-        Debug.Log($"[DIAGNOSTIC] WeaponID: {weaponID}, WeaponName: {weaponData.Name}, WeaponDamage: {weaponData.WeaponDamage}");
-        Debug.Log($"[DIAGNOSTIC] Player Health before: {playerStats.CurrentHealth}/{playerStats.MaxHealth}");
 
         // Calculer le coût en mana
         float manaCost = CalculateManaCost();
         
-        // Vérifier si le joueur a assez de mana
-        if (!playerStats.UseMana(manaCost))
+        Debug.Log($"[WEAPON DEBUG] Coût en mana calculé: {manaCost}");
+        
+        if (playerStats != null)
         {
-            Debug.Log($"[DIAGNOSTIC] Pas assez de mana pour utiliser cette arme! (Requis: {manaCost})");
+            Debug.Log($"[WEAPON DEBUG] Avant UseMana, mana actuel: {playerStats.CurrentMana}/{playerStats.MaxMana}");
+            bool hasEnoughMana = playerStats.UseMana(manaCost);
+            Debug.Log($"[WEAPON DEBUG] Après UseMana, résultat: {hasEnoughMana}, mana restant: {playerStats.CurrentMana}/{playerStats.MaxMana}");
             
+            if (!hasEnoughMana)
+            {
+                // Jouer le son d'échec
+                if (audioSource != null && noManaSound != null)
+                {
+                    audioSource.PlayOneShot(noManaSound);
+                }
+                
+                return false;
+            }
+        }
+        // Vérifier si le joueur a assez de mana (seulement si playerStats existe)
+        if (playerStats != null && !playerStats.UseMana(manaCost))
+        {
             // Jouer le son d'échec
             if (audioSource != null && noManaSound != null)
             {
@@ -138,7 +158,6 @@ public class WeaponSystem : MonoBehaviour
         
         // Effectuer une détection d'ennemis dans la zone d'attaque
         Collider[] hitEnemies = Physics.OverlapSphere(attackPoint.position, attackRange, attackableLayers);
-        Debug.Log($"[DIAGNOSTIC] Détection d'ennemis: {hitEnemies.Length} colliders trouvés");
         
         bool hitSomething = false;
         
@@ -147,20 +166,21 @@ public class WeaponSystem : MonoBehaviour
             // Ignorer le joueur lui-même
             if (enemyCollider.transform.IsChildOf(transform.root))
             {
-                Debug.Log($"[DIAGNOSTIC] Collider ignoré car c'est le joueur: {enemyCollider.name}");
                 continue;
             }
                 
-            Debug.Log($"[DIAGNOSTIC] Touché: {enemyCollider.name}");
             hitSomething = true;
             
             // Chercher un système de santé sur l'ennemi
             HealthSystem enemyHealth = enemyCollider.GetComponent<HealthSystem>();
             if (enemyHealth != null)
             {
+                // Utiliser la valeur de dégâts depuis weaponData
+                float damage = weaponData.WeaponDamage;
+                
                 // Infliger des dégâts
-                float appliedDamage = enemyHealth.TakeDamage(weaponData.WeaponDamage);
-                Debug.Log($"[DIAGNOSTIC] Dégâts infligés à l'ennemi: {appliedDamage}");
+                float appliedDamage = enemyHealth.TakeDamage(damage);
+                Debug.Log($"Dégâts infligés: {appliedDamage} (sur {damage} prévus)");
                 
                 // Créer un effet d'impact
                 if (hitEffectPrefab != null)
@@ -175,63 +195,23 @@ public class WeaponSystem : MonoBehaviour
                     audioSource.PlayOneShot(hitSound);
                 }
             }
-            else
-            {
-                Debug.Log($"[DIAGNOSTIC] Pas de HealthSystem trouvé sur: {enemyCollider.name}");
-            }
         }
         
         // Si aucun ennemi n'a été touché, faire un test contre soi-même pour démonstration
-        if (!hitSomething)
+        if (!hitSomething && playerStats != null)
         {
-            Debug.Log("[DIAGNOSTIC] Aucun ennemi touché, tentative d'auto-dégâts...");
-            
-            // Augmentons la valeur des auto-dégâts pour un test
+            // Utiliser directement la valeur de dégâts définie dans weaponData
             float demoAmount = weaponData.WeaponDamage * 0.5f; // 50% au lieu de 10%
             
             // Ajoutons un minimum pour s'assurer que la valeur n'est pas trop petite
             demoAmount = Mathf.Max(demoAmount, 5f); // Au moins 5 points de dégâts
             
-            Debug.Log($"[DIAGNOSTIC] Auto-dégâts calculés: {demoAmount} (WeaponDamage: {weaponData.WeaponDamage})");
+            Debug.Log($"Auto-dégâts de test: {demoAmount} (basé sur les dégâts de l'arme: {weaponData.WeaponDamage})");
             
             // Utilisation de différentes approches pour appliquer les dégâts
-            if (playerStats != null)
-            {
-                Debug.Log($"[DIAGNOSTIC] AVANT auto-dégâts: PV = {playerStats.CurrentHealth}/{playerStats.MaxHealth}");
-                
-                // Méthode 1: Via PlayerStats
-                Debug.Log("[DIAGNOSTIC] Méthode 1: Application via playerStats.TakeDamage");
-                playerStats.TakeDamage(demoAmount);
-                
-                Debug.Log($"[DIAGNOSTIC] APRÈS Méthode 1: PV = {playerStats.CurrentHealth}/{playerStats.MaxHealth}");
-
-                // Méthode 2: Directement sur le HealthSystem
-                HealthSystem playerHealthSys = playerStats.GetComponent<HealthSystem>();
-                if (playerHealthSys != null)
-                {
-                    Debug.Log("[DIAGNOSTIC] Méthode 2: Application directe via healthSystem.TakeDamage");
-                    float damageApplied = playerHealthSys.TakeDamage(demoAmount);
-                    Debug.Log($"[DIAGNOSTIC] Dégâts réellement appliqués (Méthode 2): {damageApplied}");
-                    Debug.Log($"[DIAGNOSTIC] APRÈS Méthode 2: PV = {playerHealthSys.CurrentHealth}/{playerHealthSys.MaxHealth}");
-                }
-                else
-                {
-                    Debug.LogError("[DIAGNOSTIC] Impossible de récupérer le HealthSystem du joueur!");
-                }
-                
-                // Vérifions si les stats sont à jour
-                Debug.Log($"[DIAGNOSTIC] État final du joueur après auto-dégâts:");
-                Debug.Log($"[DIAGNOSTIC] PlayerStats.CurrentHealth = {playerStats.CurrentHealth}");
-                Debug.Log($"[DIAGNOSTIC] HealthSystem.CurrentHealth = {playerStats.GetComponent<HealthSystem>()?.CurrentHealth}");
-            }
-            else
-            {
-                Debug.LogError("[DIAGNOSTIC] PlayerStats est null pendant l'application des auto-dégâts!");
-            }
+            playerStats.TakeDamage(demoAmount);
         }
         
-        Debug.Log($"[DIAGNOSTIC] Player health after attack: {playerStats.CurrentHealth}/{playerStats.MaxHealth}");
-        Debug.Log($"=========== FIN DIAGNOSTIC ATTAQUE ===========");
         return true;
     }
     
@@ -271,7 +251,8 @@ public class WeaponSystem : MonoBehaviour
     /// <param name="id">ID de l'arme dans l'ItemDatabase</param>
     public void SetWeaponID(int id)
     {
-        Debug.Log($"[DIAGNOSTIC] SetWeaponID appelé avec ID={id}");
+        Debug.Log($"[WEAPON DEBUG] SetWeaponID appelé avec id={id}");
+
         weaponID = id;
         
         if (ItemDatabase.Instance != null)
@@ -280,34 +261,49 @@ public class WeaponSystem : MonoBehaviour
             
             if (weaponData == null)
             {
-                Debug.LogError($"[DIAGNOSTIC] Données de l'arme avec ID {id} non trouvées!");
+                Debug.LogError($"Données de l'arme avec ID {id} non trouvées!");
             }
             else if (weaponData.Type != ItemType.Weapon)
             {
-                Debug.LogError($"[DIAGNOSTIC] L'item avec ID {id} n'est pas une arme!");
+                Debug.LogError($"L'item avec ID {id} n'est pas une arme!");
             }
             else
             {
-                Debug.Log($"[DIAGNOSTIC] Arme mise à jour: ID={id}, Nom={weaponData.Name}, Dégâts={weaponData.WeaponDamage}");
+                Debug.Log($"[WEAPON DEBUG] Arme configurée: {weaponData.Name} avec dégâts: {weaponData.WeaponDamage}");
             }
         }
         else
         {
-            Debug.LogError("[DIAGNOSTIC] ItemDatabase.Instance est null dans SetWeaponID!");
+            Debug.LogWarning("ItemDatabase.Instance est null dans SetWeaponID. Cela n'est pas une erreur critique.");
+        }
+        
+        // Si PlayerStats existe, le notifier du changement d'arme, sans consommer de mana
+        if (playerStats != null)
+        {
+            Debug.Log($"[WEAPON DEBUG] Avant UpdateEquippedWeapon, mana actuel: {playerStats.CurrentMana}/{playerStats.MaxMana}");
+            playerStats.UpdateEquippedWeapon();
+            Debug.Log($"[WEAPON DEBUG] Après UpdateEquippedWeapon, mana actuel: {playerStats.CurrentMana}/{playerStats.MaxMana}");
         }
     }
     
     void Update()
     {
         // Test direct pour infliger des dégâts avec la touche X
-        if (Input.GetKeyDown(KeyCode.X) && playerStats != null)
+        if (Input.GetKeyDown(KeyCode.X))
         {
-            float damage = 5f;
-            Debug.Log($"[DIAGNOSTIC] Test d'attaque directe avec X: {damage} dégâts");
+            // Chercher les playerStats si non trouvés précédemment
+            if (playerStats == null)
+            {
+                playerStats = GetComponentInParent<PlayerStats>();
+                if (playerStats == null)
+                {
+                    Debug.LogWarning("PlayerStats non trouvé dans Update(). Le test de dégâts ne peut pas être effectué.");
+                    return;
+                }
+            }
             
-            Debug.Log($"[DIAGNOSTIC] AVANT touche X: PV = {playerStats.CurrentHealth}/{playerStats.MaxHealth}");
+            float damage = 5f;
             playerStats.TakeDamage(damage);
-            Debug.Log($"[DIAGNOSTIC] APRÈS touche X: PV = {playerStats.CurrentHealth}/{playerStats.MaxHealth}");
         }
     }
 }

@@ -44,7 +44,7 @@ public class PlayerStatsUI : MonoBehaviour
     private void Start()
     {
         // Trouver le PlayerStats
-        playerStats = FindObjectOfType<PlayerStats>();
+        playerStats = FindAnyObjectByType<PlayerStats>();
         
         if (playerStats == null)
         {
@@ -225,7 +225,7 @@ public class PlayerStatsUI : MonoBehaviour
             }
         }
         
-        Debug.Log($"Endurance mise à jour: {currentStamina}/{maxStamina}");
+       // Debug.Log($"Endurance mise à jour: {currentStamina}/{maxStamina}");
     }
     
     // Méthode pour déclencher manuellement l'effet de flash de dégâts

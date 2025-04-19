@@ -17,10 +17,13 @@ public class InventoryManager : MonoBehaviour
     
     [Header("Hotbar Configuration")]
     public int hotbarSlots = 8;
+    [Tooltip("Nombre d'emplacements réservés aux armes en début de hotbar")]
+    public int weaponReservedSlots = 2;
     public Image[] slotImages;
     public TextMeshProUGUI[] quantityTexts;
     public Color selectedSlotColor = new Color(1f, 1f, 1f, 1f);
     public Color defaultSlotColor = new Color(0.8f, 0.8f, 0.8f, 0.8f);
+    public Color weaponSlotColor = new Color(0.9f, 0.7f, 0.7f, 0.8f);
     
     [Header("Messages")]
     public GameObject inventoryFullMessage;
@@ -58,66 +61,75 @@ public class InventoryManager : MonoBehaviour
     
     // ------------------- Méthodes d'inventaire général -------------------
 
-// Ajouter un item à l'inventaire
-public void AddItem(int itemID, int quantity = 1)
-{
-    ItemData itemData = ItemDatabase.Instance.GetItem(itemID);
-    if (itemData == null) return;
-    
-    Debug.Log($"Ajout de {quantity}x {itemData.Name} (ID: {itemID}) à l'inventaire");
-    
-    // Vérifier si l'item existe déjà dans l'inventaire
-    bool itemFound = false;
-    
-    // Essayer d'empiler si l'item est empilable
-    if (itemData.IsStackable)
+    // Ajouter un item à l'inventaire
+    public void AddItem(int itemID, int quantity = 1)
     {
-        // Chercher dans l'inventaire global
-        foreach (var item in inventory)
+        ItemData itemData = ItemDatabase.Instance.GetItem(itemID);
+        if (itemData == null) return;
+        
+        Debug.Log($"Ajout de {quantity}x {itemData.Name} (ID: {itemID}) à l'inventaire");
+        
+        // Vérifier si l'item existe déjà dans l'inventaire
+        bool itemFound = false;
+        
+        // Essayer d'empiler si l'item est empilable
+        if (itemData.IsStackable)
         {
-            if (item.itemID == itemID)
+            // Chercher dans l'inventaire global
+            foreach (var item in inventory)
             {
-                itemFound = true;
-                item.quantity += quantity;
-                Debug.Log($"Quantité augmentée à {item.quantity}");
-                
-                // Mettre à jour les UI des slots contenant cet item
-                for (int i = 0; i < hotbarItems.Count; i++)
+                if (item.itemID == itemID)
                 {
-                    if (hotbarItems[i] != null && hotbarItems[i].itemID == itemID)
+                    itemFound = true;
+                    item.quantity += quantity;
+                    Debug.Log($"Quantité augmentée à {item.quantity}");
+                    
+                    // Mettre à jour les UI des slots contenant cet item
+                    for (int i = 0; i < hotbarItems.Count; i++)
                     {
-                        UpdateSlotUI(i);
-                        
-                        // Si c'est le slot actuellement sélectionné, réactiver l'équipement
-                        if (i == selectedSlot)
+                        if (hotbarItems[i] != null && hotbarItems[i].itemID == itemID)
                         {
-                            OnItemEquipped?.Invoke(hotbarItems[i]);
+                            UpdateSlotUI(i);
+                            
+                            // Si c'est le slot actuellement sélectionné, réactiver l'équipement
+                            if (i == selectedSlot)
+                            {
+                                OnItemEquipped?.Invoke(hotbarItems[i]);
+                            }
                         }
                     }
+                    
+                    break;
                 }
+            }
+        }
+        
+        // Si l'item n'a pas été trouvé, créer une nouvelle instance
+        if (!itemFound)
+        {
+            ItemInstance newItem = new ItemInstance(itemID, quantity);
+            inventory.Add(newItem);
+            
+            // Vérifier s'il s'agit d'une arme et si les emplacements d'armes sont déjà pleins
+            if (itemData.Type == ItemType.Weapon && AreWeaponSlotsFull())
+            {
+                // Afficher un message indiquant que les emplacements d'armes sont pleins
+                ShowWeaponSlotsFullMessage();
+            }
+            else
+            {
+                // Ajouter l'item à la hotbar
+                AddItemToHotbar(newItem);
                 
-                break;
+                // Si le slot où l'item a été ajouté est le slot sélectionné, équiper l'item
+                int slotIndex = GetHotbarIndexByUniqueID(newItem.uniqueID);
+                if (slotIndex >= 0 && slotIndex == selectedSlot)
+                {
+                    OnItemEquipped?.Invoke(newItem);
+                }
             }
         }
     }
-    
-    // Si l'item n'a pas été trouvé, créer une nouvelle instance
-    if (!itemFound)
-    {
-        ItemInstance newItem = new ItemInstance(itemID, quantity);
-        inventory.Add(newItem);
-        
-        // Ajouter l'item à la hotbar
-        AddItemToHotbar(newItem);
-        
-        // Si le slot où l'item a été ajouté est le slot sélectionné, équiper l'item
-        int slotIndex = GetHotbarIndexByUniqueID(newItem.uniqueID);
-        if (slotIndex >= 0 && slotIndex == selectedSlot)
-        {
-            OnItemEquipped?.Invoke(newItem);
-        }
-    }
-}
     
     // Vérifier si l'inventaire contient un item spécifique
     public bool HasItem(int itemID)
@@ -139,48 +151,83 @@ public void AddItem(int itemID, int quantity = 1)
     
     // Supprimer un item de l'inventaire par son ID unique
     public bool RemoveItem(int itemID, int quantity = 1)
-{
-    if (quantity <= 0) return false;
-    
-    Debug.Log($"Tentative de suppression de {quantity}x item ID: {itemID}");
-    int remainingToRemove = quantity;
-    
-    // Chercher tous les items correspondants
-    List<ItemInstance> matchingItems = inventory.FindAll(item => item.itemID == itemID);
-    
-    if (matchingItems.Count == 0)
     {
-        Debug.Log($"Aucun item avec ID {itemID} trouvé dans l'inventaire");
-        return false;
-    }
-    
-    // Créer une copie car nous allons modifier pendant l'itération
-    List<ItemInstance> itemsToProcess = new List<ItemInstance>(matchingItems);
-    
-    foreach (var item in itemsToProcess)
-    {
-        if (item.IsStackable)
+        if (quantity <= 0) return false;
+        
+        Debug.Log($"Tentative de suppression de {quantity}x item ID: {itemID}");
+        int remainingToRemove = quantity;
+        
+        // Chercher tous les items correspondants
+        List<ItemInstance> matchingItems = inventory.FindAll(item => item.itemID == itemID);
+        
+        if (matchingItems.Count == 0)
         {
-            Debug.Log($"Traitement de l'item empilable: {item.Name}, Quantité: {item.quantity}");
-            if (item.quantity <= remainingToRemove)
+            Debug.Log($"Aucun item avec ID {itemID} trouvé dans l'inventaire");
+            return false;
+        }
+        
+        // Créer une copie car nous allons modifier pendant l'itération
+        List<ItemInstance> itemsToProcess = new List<ItemInstance>(matchingItems);
+        
+        foreach (var item in itemsToProcess)
+        {
+            if (item.IsStackable)
             {
-                // Supprimer l'item complètement
-                remainingToRemove -= item.quantity;
-                Debug.Log($"Suppression complète de l'item (quantité: {item.quantity})");
+                Debug.Log($"Traitement de l'item empilable: {item.Name}, Quantité: {item.quantity}");
+                if (item.quantity <= remainingToRemove)
+                {
+                    // Supprimer l'item complètement
+                    remainingToRemove -= item.quantity;
+                    Debug.Log($"Suppression complète de l'item (quantité: {item.quantity})");
+                    
+                    // Vérifier si cet item est dans la hotbar
+                    int hotbarIndex = GetHotbarIndexByUniqueID(item.uniqueID);
+                    if (hotbarIndex >= 0)
+                    {
+                        Debug.Log($"L'item est dans la hotbar au slot {hotbarIndex}");
+                        
+                        // Le slot deviendra vide car c'était le dernier de cet item
+                        hotbarItems[hotbarIndex] = null;
+                        UpdateSlotUI(hotbarIndex);
+                        
+                        // Mettre à jour le prochain slot disponible
+                        UpdateNextAvailableSlot();
+                            
+                        // Si c'était le slot sélectionné, déclencher un événement de déséquipement
+                        if (hotbarIndex == selectedSlot)
+                        {
+                            OnItemUnequipped?.Invoke();
+                        }
+                    }
+                    
+                    // Supprimer l'item de l'inventaire global
+                    inventory.Remove(item);
+                }
+                else
+                {
+                    // Réduire la quantité
+                    item.quantity -= remainingToRemove;
+                    Debug.Log($"Réduction de la quantité à {item.quantity}");
+                    remainingToRemove = 0;
+                    
+                    // Mettre à jour l'UI
+                    UpdateHotbarUI();
+                }
+            }
+            else
+            {
+                // Item non empilable
+                Debug.Log($"Suppression de l'item non empilable: {item.Name}");
                 
                 // Vérifier si cet item est dans la hotbar
                 int hotbarIndex = GetHotbarIndexByUniqueID(item.uniqueID);
                 if (hotbarIndex >= 0)
                 {
-                    Debug.Log($"L'item est dans la hotbar au slot {hotbarIndex}");
-                    
-                    // Le slot deviendra vide car c'était le dernier de cet item
                     hotbarItems[hotbarIndex] = null;
                     UpdateSlotUI(hotbarIndex);
                     
                     // Mettre à jour le prochain slot disponible
-                    if (nextAvailableSlot == -1 || hotbarIndex < nextAvailableSlot)
-                        nextAvailableSlot = hotbarIndex;
+                    UpdateNextAvailableSlot();
                         
                     // Si c'était le slot sélectionné, déclencher un événement de déséquipement
                     if (hotbarIndex == selectedSlot)
@@ -189,66 +236,29 @@ public void AddItem(int itemID, int quantity = 1)
                     }
                 }
                 
-                // Supprimer l'item de l'inventaire global
                 inventory.Remove(item);
-            }
-            else
-            {
-                // Réduire la quantité
-                item.quantity -= remainingToRemove;
-                Debug.Log($"Réduction de la quantité à {item.quantity}");
-                remainingToRemove = 0;
-                
-                // Mettre à jour l'UI
-                UpdateHotbarUI();
-            }
-        }
-        else
-        {
-            // Item non empilable
-            Debug.Log($"Suppression de l'item non empilable: {item.Name}");
-            
-            // Vérifier si cet item est dans la hotbar
-            int hotbarIndex = GetHotbarIndexByUniqueID(item.uniqueID);
-            if (hotbarIndex >= 0)
-            {
-                hotbarItems[hotbarIndex] = null;
-                UpdateSlotUI(hotbarIndex);
-                
-                // Mettre à jour le prochain slot disponible
-                if (nextAvailableSlot == -1 || hotbarIndex < nextAvailableSlot)
-                    nextAvailableSlot = hotbarIndex;
-                    
-                // Si c'était le slot sélectionné, déclencher un événement de déséquipement
-                if (hotbarIndex == selectedSlot)
-                {
-                    OnItemUnequipped?.Invoke();
-                }
+                remainingToRemove--;
             }
             
-            inventory.Remove(item);
-            remainingToRemove--;
+            if (remainingToRemove <= 0) break;
         }
         
-        if (remainingToRemove <= 0) break;
+        Debug.Log($"Suppression terminée. Reste à supprimer: {remainingToRemove}");
+        return remainingToRemove < quantity;
     }
-    
-    Debug.Log($"Suppression terminée. Reste à supprimer: {remainingToRemove}");
-    return remainingToRemove < quantity;
-}
 
-// Méthode auxiliaire pour trouver l'index d'un item dans la hotbar
-private int GetHotbarIndexByUniqueID(string uniqueID)
-{
-    for (int i = 0; i < hotbarItems.Count; i++)
+    // Méthode auxiliaire pour trouver l'index d'un item dans la hotbar
+    private int GetHotbarIndexByUniqueID(string uniqueID)
     {
-        if (hotbarItems[i] != null && hotbarItems[i].uniqueID == uniqueID)
+        for (int i = 0; i < hotbarItems.Count; i++)
         {
-            return i;
+            if (hotbarItems[i] != null && hotbarItems[i].uniqueID == uniqueID)
+            {
+                return i;
+            }
         }
+        return -1;
     }
-    return -1;
-}
     
     // ------------------- Méthodes de gestion de la Hotbar -------------------
     
@@ -266,6 +276,16 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
             {
                 slotImages[i].sprite = null;
                 slotImages[i].enabled = false;
+                
+                // Appliquer une couleur différente pour les slots d'armes
+                if (i < weaponReservedSlots)
+                {
+                    slotImages[i].color = weaponSlotColor;
+                }
+                else
+                {
+                    slotImages[i].color = defaultSlotColor;
+                }
             }
             
             if (i < quantityTexts.Length && quantityTexts[i] != null)
@@ -276,10 +296,49 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
         }
         
         nextAvailableSlot = 0;
-        Debug.Log($"Hotbar initialisée avec {hotbarSlots} slots");
+        Debug.Log($"Hotbar initialisée avec {hotbarSlots} slots dont {weaponReservedSlots} réservés aux armes");
     }
     
-    // Ajouter un item à la hotbar
+    // Vérifier si les emplacements d'armes sont pleins
+    public bool AreWeaponSlotsFull()
+    {
+        for (int i = 0; i < weaponReservedSlots && i < hotbarItems.Count; i++)
+        {
+            if (hotbarItems[i] == null)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    // Trouver un slot libre pour une arme
+    private int FindFreeWeaponSlot()
+    {
+        for (int i = 0; i < weaponReservedSlots && i < hotbarItems.Count; i++)
+        {
+            if (hotbarItems[i] == null)
+            {
+                return i;
+            }
+        }
+        return -1; // Pas de slot libre pour les armes
+    }
+    
+    // Trouver un slot libre pour un item non-arme
+    private int FindFreeNonWeaponSlot()
+    {
+        for (int i = weaponReservedSlots; i < hotbarItems.Count; i++)
+        {
+            if (hotbarItems[i] == null)
+            {
+                return i;
+            }
+        }
+        return -1; // Pas de slot libre pour les items non-armes
+    }
+    
+    // Ajouter un item à la hotbar en respectant les règles de placement
     private void AddItemToHotbar(ItemInstance item)
     {
         if (item == null) return;
@@ -298,23 +357,43 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
             }
         }
         
-        // Si on arrive ici, l'item n'est pas dans la hotbar
-        if (nextAvailableSlot >= 0 && nextAvailableSlot < hotbarItems.Count)
+        // Déterminer le slot approprié selon le type d'item
+        int slotIndex = -1;
+        
+        if (item.Type == ItemType.Weapon)
         {
-            hotbarItems[nextAvailableSlot] = item;
-            Debug.Log($"Item {item.Name} ajouté au slot {nextAvailableSlot}");
+            // Pour les armes, utiliser uniquement les slots réservés
+            slotIndex = FindFreeWeaponSlot();
             
-            // Mettre à jour l'UI
-            UpdateSlotUI(nextAvailableSlot);
-            
-            // Calculer le prochain slot disponible
-            UpdateNextAvailableSlot();
+            if (slotIndex == -1)
+            {
+                Debug.Log("Tous les emplacements d'armes sont occupés!");
+                ShowWeaponSlotsFullMessage();
+                return;
+            }
         }
         else
         {
-            Debug.Log("Hotbar pleine, impossible d'ajouter l'item");
-            ShowInventoryFullMessage();
+            // Pour les autres items, utiliser les slots non réservés
+            slotIndex = FindFreeNonWeaponSlot();
+            
+            if (slotIndex == -1)
+            {
+                Debug.Log("Inventaire plein pour les items non-armes!");
+                ShowInventoryFullMessage();
+                return;
+            }
         }
+        
+        // Ajouter l'item au slot trouvé
+        hotbarItems[slotIndex] = item;
+        Debug.Log($"Item {item.Name} ajouté au slot {slotIndex}");
+        
+        // Mettre à jour l'UI
+        UpdateSlotUI(slotIndex);
+        
+        // Mettre à jour le prochain slot disponible
+        UpdateNextAvailableSlot();
     }
     
     // Mettre à jour l'UI de la hotbar
@@ -340,7 +419,18 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
             slotImages[slotIndex].enabled = true;
             
             // Mettre à jour la couleur
-            slotImages[slotIndex].color = (slotIndex == selectedSlot) ? selectedSlotColor : defaultSlotColor;
+            if (slotIndex == selectedSlot)
+            {
+                slotImages[slotIndex].color = selectedSlotColor;
+            }
+            else if (slotIndex < weaponReservedSlots)
+            {
+                slotImages[slotIndex].color = weaponSlotColor;
+            }
+            else
+            {
+                slotImages[slotIndex].color = defaultSlotColor;
+            }
             
             // Mettre à jour le texte de quantité
             if (slotIndex < quantityTexts.Length && quantityTexts[slotIndex] != null)
@@ -362,7 +452,16 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
             // Slot vide
             slotImages[slotIndex].sprite = null;
             slotImages[slotIndex].enabled = false;
-            slotImages[slotIndex].color = defaultSlotColor;
+            
+            // Restaurer la couleur de fond selon le type de slot
+            if (slotIndex < weaponReservedSlots)
+            {
+                slotImages[slotIndex].color = weaponSlotColor;
+            }
+            else
+            {
+                slotImages[slotIndex].color = defaultSlotColor;
+            }
             
             if (slotIndex < quantityTexts.Length && quantityTexts[slotIndex] != null)
             {
@@ -375,34 +474,15 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
     // Calculer le prochain slot disponible
     private void UpdateNextAvailableSlot()
     {
-        for (int i = 0; i < hotbarItems.Count; i++)
-        {
-            if (hotbarItems[i] == null)
-            {
-                nextAvailableSlot = i;
-                return;
-            }
-        }
+        nextAvailableSlot = -1; // Réinitialiser
         
-        nextAvailableSlot = -1; // Aucun slot disponible
-    }
-    
-    // Supprimer un item de la hotbar par son ID unique
-    private void RemoveItemFromHotbarByUniqueID(string uniqueID)
-    {
-        for (int i = 0; i < hotbarItems.Count; i++)
+        // D'abord chercher un slot libre pour arme
+        nextAvailableSlot = FindFreeWeaponSlot();
+        
+        // Si aucun slot d'arme n'est disponible ou tous remplis, chercher un slot pour autre item
+        if (nextAvailableSlot == -1)
         {
-            if (hotbarItems[i] != null && hotbarItems[i].uniqueID == uniqueID)
-            {
-                hotbarItems[i] = null;
-                UpdateSlotUI(i);
-                
-                // Mettre à jour le prochain slot disponible
-                if (nextAvailableSlot == -1 || i < nextAvailableSlot)
-                    nextAvailableSlot = i;
-                
-                break;
-            }
+            nextAvailableSlot = FindFreeNonWeaponSlot();
         }
     }
     
@@ -427,7 +507,17 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
         
         // Mettre à jour l'UI
         if (previousSlot >= 0 && previousSlot < slotImages.Length)
-            slotImages[previousSlot].color = defaultSlotColor;
+        {
+            // Restaurer la couleur de fond selon le type de slot
+            if (previousSlot < weaponReservedSlots)
+            {
+                slotImages[previousSlot].color = weaponSlotColor;
+            }
+            else
+            {
+                slotImages[previousSlot].color = defaultSlotColor;
+            }
+        }
         
         if (selectedSlot >= 0 && selectedSlot < slotImages.Length)
             slotImages[selectedSlot].color = selectedSlotColor;
@@ -446,10 +536,23 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
         }
     }
     
-    // Vérifie si la hotbar est pleine
+    // Vérifie si la hotbar est pleine pour un type d'item spécifique
+    public bool IsHotbarFull(ItemType itemType = ItemType.Resource)
+    {
+        if (itemType == ItemType.Weapon)
+        {
+            return AreWeaponSlotsFull();
+        }
+        else
+        {
+            return FindFreeNonWeaponSlot() == -1;
+        }
+    }
+    
+    // Vérifie si toute la hotbar est pleine
     public bool IsHotbarFull()
     {
-        return nextAvailableSlot == -1;
+        return FindFreeWeaponSlot() == -1 && FindFreeNonWeaponSlot() == -1;
     }
     
     // ------------------- Messages UI -------------------
@@ -469,6 +572,21 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
     {
         if (inventoryFullMessage != null)
             inventoryFullMessage.SetActive(false);
+    }
+    
+    // Afficher un message indiquant que les emplacements d'armes sont pleins
+    private void ShowWeaponSlotsFullMessage()
+    {
+        // Utiliser FindFirstObjectByType ou FindAnyObjectByType au lieu de FindObjectOfType
+        PlayerController playerController = Object.FindAnyObjectByType<PlayerController>();
+        if (playerController != null && playerController.promptText != null)
+        {
+            playerController.ShowMessage("Les emplacements d'armes sont pleins!");
+        }
+        else
+        {
+            Debug.LogWarning("PlayerController ou promptText non trouvé pour afficher le message");
+        }
     }
     
     // ------------------- Événements -------------------
@@ -528,85 +646,5 @@ private int GetHotbarIndexByUniqueID(string uniqueID)
         }
         
         Debug.Log("===============================");
-    }
-}
-
-// ------------------- Utilitaires pour l'utilisation des items -------------------
-
-public static class ItemUsageHelper
-{
-    // Utiliser un item directement par son ID
-    public static void UseItem(int itemID)
-    {
-        if (InventoryManager.Instance == null) return;
-        
-        // Vérifier si l'item est dans l'inventaire
-        if (!InventoryManager.Instance.HasItem(itemID))
-        {
-            Debug.LogWarning($"Item avec ID {itemID} non présent dans l'inventaire");
-            return;
-        }
-        
-        // Récupérer les données de l'item
-        ItemData itemData = ItemDatabase.Instance.GetItem(itemID);
-        if (itemData == null) return;
-        
-        // Comportement selon le type d'item
-        switch (itemData.Type)
-        {
-            case ItemType.Consumable:
-                UseConsumable(itemID);
-                break;
-                
-            case ItemType.Weapon:
-            case ItemType.Equipment:
-                EquipItem(itemID);
-                break;
-                
-            default:
-                Debug.Log($"Pas d'action spécifique pour l'item {itemData.Name} de type {itemData.Type}");
-                break;
-        }
-    }
-    
-    // Équiper un item
-    private static void EquipItem(int itemID)
-    {
-        if (InventoryManager.Instance == null) return;
-        
-        // Chercher un slot contenant cet item
-        for (int i = 0; i < InventoryManager.Instance.hotbarSlots; i++)
-        {
-            ItemInstance item = InventoryManager.Instance.GetItemAtSlot(i);
-            if (item != null && item.itemID == itemID)
-            {
-                InventoryManager.Instance.SelectSlot(i);
-                return;
-            }
-        }
-        
-        Debug.LogWarning($"Item avec ID {itemID} non trouvé dans la hotbar");
-    }
-    
-    // Utiliser un consommable
-    private static void UseConsumable(int itemID)
-    {
-        if (InventoryManager.Instance == null) return;
-        
-        // Récupérer les données
-        ItemData itemData = ItemDatabase.Instance.GetItem(itemID);
-        if (itemData == null) return;
-        
-        Debug.Log($"Consommation de {itemData.Name}");
-        
-        // Appliquer l'effet
-        if (itemData.HealthRestore > 0)
-        {
-            // Restaurer la santé (à implémenter avec le système de santé)
-            Debug.Log($"Santé restaurée: {itemData.HealthRestore}");
-        }
-        
-        // Réduire la quantité
-        InventoryManager.Instance.RemoveItem(itemID, 1);
     }
 }

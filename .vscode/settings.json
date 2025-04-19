@@ -56,5 +56,6 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "UnityDevGame.sln"
+    "dotnet.defaultSolution": "UnityDevGame.sln",
+    "FSharp.suggestGitignore": false
 }
