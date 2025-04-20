@@ -17,6 +17,20 @@ public class SlimeAI : MeleeAI
     [SerializeField] private bool canSplitOnDeath = false;      // Le Slime peut se diviser en mourant
     [SerializeField] private GameObject smallerSlimePrefab;     // Prefab pour les petits slimes
     [SerializeField] private int splitCount = 2;                // Nombre de petits slimes créés
+    [SerializeField] private float slimeAvoidanceMultiplier = 1.8f; // Multiplicateur d'évitement pour les slimes
+
+    [Header("Références d'animation")]
+    [SerializeField] private Animator animator;                 // Référence à l'Animator du Slime
+    
+    // Constantes pour les paramètres d'animation
+    private static readonly string ANIM_IS_MOVING = "IsMoving";
+    private static readonly string ANIM_IS_JUMPING = "IsJumping";
+    private static readonly string ANIM_PREPARE_JUMP = "PrepareJump";
+    private static readonly string ANIM_ATTACK = "Attack";
+    private static readonly string ANIM_TAKE_DAMAGE = "TakeDamage";
+    private static readonly string ANIM_DIE = "Die";
+    private static readonly string ANIM_LAND = "Land";
+    private static readonly string ANIM_IS_AGGRESSIVE = "IsAggressive";
 
     // Variables d'état pour le saut
     private float lastJumpTime = -10f;  // -10 pour permettre un saut dès le début
@@ -24,27 +38,36 @@ public class SlimeAI : MeleeAI
     private bool isJumping = false;
     private Vector3 jumpTargetPosition;
 
-    // Variables pour l'animation de squish/stretch
-    private Vector3 originalScale;
-    private float squishFactor = 1f;
-
     protected override void Awake()
     {
         base.Awake();
         
+        Debug.Log($"{gameObject.name}: moveSpeed={moveSpeed}, attackRange={attackRange}, attackDamage={attackDamage}");
+
         // Configuration spécifique au Slime
         moveSpeed = 2.5f;                // Vitesse réduite
         attackRange = 1.5f;              // Attaque à courte portée
         attackDamage = 10f;              // Dégâts modérés
         attackCooldown = 2f;             // Attaque lente
         
-        // Sauvegarder l'échelle originale pour les animations
-        originalScale = transform.localScale;
-        
         // S'abonner à l'événement de mort
         if (healthSystem != null)
         {
             healthSystem.OnDeath.AddListener(OnDeath);
+        }
+        
+        // Augmenter le facteur d'évitement pour les slimes
+        aggressiveAvoidanceMultiplier = slimeAvoidanceMultiplier;
+        
+        // S'assurer que l'Animator est référencé
+        if (animator == null)
+        {
+            animator = GetComponent<Animator>();
+            
+            if (animator == null)
+            {
+                Debug.LogError("Animator component not found on SlimeAI GameObject!");
+            }
         }
     }
 
@@ -63,17 +86,107 @@ public class SlimeAI : MeleeAI
     {
         base.Update();
         
-        // Animation de pulsation/respiration quand le Slime est au sol
-        if (isActive && !isJumping && !isPrepareJump)
+        // Ne pas exécuter les animations si l'IA n'est pas active
+        if (!isActive) return;
+        
+        // Mettre à jour l'animation de déplacement
+        if (animator != null)
         {
-            // Effet de pulsation sinusoïdale
-            float breatheFactor = Mathf.Sin(Time.time * 2f) * 0.05f + 1f;
-            transform.localScale = new Vector3(
-                originalScale.x * (1f + breatheFactor * 0.1f),
-                originalScale.y * (1f - breatheFactor * 0.1f), 
-                originalScale.z * (1f + breatheFactor * 0.1f)
-            );
+            // Détecter si le slime est en mouvement
+            bool isMoving = rb != null && rb.linearVelocity.magnitude > 0.1f && !isJumping && !isPrepareJump;
+            animator.SetBool(ANIM_IS_MOVING, isMoving);
+            
+            // Synchroniser l'état agressif avec l'Animator
+            animator.SetBool(ANIM_IS_AGGRESSIVE, GetCurrentState() == AIState.Aggressive);
         }
+        
+        // Si un saut est bloqué depuis trop longtemps, le réinitialiser
+        if ((isPrepareJump || isJumping) && Time.time - lastJumpTime > 5f)
+        {
+            CancelJumpAnimation();
+            Debug.Log("Animation de saut forcée à terminer après timeout");
+        }
+    }
+    
+    /// <summary>
+    /// Surcharge du comportement agressif pour tenir compte de l'état de saut
+    /// </summary>
+    protected override void UpdateAggressiveBehavior()
+    {
+        Debug.Log($"{gameObject.name}: Distance au joueur: {Vector3.Distance(transform.position, target.position)}, AttackRange: {attackRange}");
+
+        // Si le slime est en phase de saut ou de préparation, ne pas exécuter le comportement standard
+        if (isPrepareJump || isJumping)
+        {
+            // Continuer à faire face à la cible pendant le saut
+            if (target != null)
+            {
+                FaceTarget();
+            }
+            return;
+        }
+        
+        // Sinon, utiliser le comportement agressif standard
+        base.UpdateAggressiveBehavior();
+    }
+
+    /// <summary>
+    /// Surcharge de la méthode de calcul de position tactique pour les slimes
+    /// </summary>
+    protected override Vector3 CalculateTacticalPosition()
+    {
+        if (target == null) return transform.position;
+        
+        // Position de base calculée par la méthode parent
+        Vector3 basePosition = base.CalculateTacticalPosition();
+        
+        // Pour les slimes, s'assurer qu'ils se répartissent encore plus pour préparer leurs sauts
+        // Détecter les autres slimes autour de la cible
+        int slimesAroundTarget = 0;
+        
+        int hitCount = Physics.OverlapSphereNonAlloc(target.position, jumpAttackRadius * 2f, nearbyAIColliders, aiLayerMask);
+        
+        for (int i = 0; i < hitCount; i++)
+        {
+            if (nearbyAIColliders[i] == null || nearbyAIColliders[i] == aiCollider) continue;
+            
+            // Vérifier si c'est un autre slime
+            SlimeAI otherSlime = nearbyAIColliders[i].GetComponent<SlimeAI>();
+            if (otherSlime != null && otherSlime.GetCurrentState() == AIState.Aggressive)
+            {
+                slimesAroundTarget++;
+            }
+        }
+        
+        // S'il y a d'autres slimes, augmenter la distance de positionnement
+        if (slimesAroundTarget > 0)
+        {
+            // Direction de la cible vers notre position de base
+            Vector3 directionFromTarget = basePosition - target.position;
+            
+            if (directionFromTarget.magnitude < 0.1f)
+            {
+                // Si la direction est trop petite, générer une direction aléatoire
+                float randomAngle = ((GetInstanceID() % 360) + Time.time * 10f) % 360f * Mathf.Deg2Rad;
+                directionFromTarget = new Vector3(Mathf.Cos(randomAngle), 0, Mathf.Sin(randomAngle));
+            }
+            
+            // Normaliser et étendre la distance pour éviter le chevauchement des slimes
+            directionFromTarget = directionFromTarget.normalized;
+            float distanceMultiplier = 1.0f + (slimesAroundTarget * 0.4f);
+            
+            // Calculer une nouvelle position qui tient compte des autres slimes
+            Vector3 adjustedPosition = target.position + directionFromTarget * (attackRange * distanceMultiplier);
+            
+            // Vérifier que cette position est accessible
+            if (!Physics.CheckSphere(adjustedPosition, 0.5f, obstacleLayers))
+            {
+                return adjustedPosition;
+            }
+        }
+        
+        // Si aucun ajustement n'est nécessaire ou possible, utiliser la position de base
+        return basePosition;
     }
 
     /// <summary>
@@ -105,24 +218,22 @@ public class SlimeAI : MeleeAI
     }
     
     /// <summary>
-    /// Coroutine gérant l'animation et la physique du saut d'attaque
+    /// Coroutine gérant la physique du saut d'attaque et déclenche les animations correspondantes
     /// </summary>
     private IEnumerator JumpAttackCoroutine()
     {
+        Debug.Log("Début de JumpAttackCoroutine");
+        float totalCoroutineTime = 0f;
+        float maxCoroutineTime = 5f; // 5 secondes max pour toute l'animation
+        
         isPrepareJump = true;
+        lastJumpTime = Time.time;
         
-        // Animation de préparation du saut (écrasement)
-        float prepTime = 0f;
-        Vector3 squishScale = new Vector3(originalScale.x * 1.3f, originalScale.y * 0.7f, originalScale.z * 1.3f);
+        // Déclencher l'animation de préparation
+        animator.SetBool(ANIM_PREPARE_JUMP, true);
         
-        // Interpoler vers la forme écrasée
-        while (prepTime < jumpPrepareTime)
-        {
-            float t = prepTime / jumpPrepareTime;
-            transform.localScale = Vector3.Lerp(originalScale, squishScale, t);
-            prepTime += Time.deltaTime;
-            yield return null;
-        }
+        // Attendre le temps de préparation (l'animation sera jouée pendant ce temps)
+        yield return new WaitForSeconds(jumpPrepareTime);
         
         // Calculer la direction vers la cible
         if (target != null)
@@ -134,68 +245,96 @@ public class SlimeAI : MeleeAI
             // Stocker la position cible du saut
             jumpTargetPosition = target.position;
             
-            isJumping = true;
+            // Passage à l'état de saut
             isPrepareJump = false;
+            isJumping = true;
             
-            // Animation d'étirement lors du saut
-            transform.localScale = new Vector3(originalScale.x * 0.8f, originalScale.y * 1.3f, originalScale.z * 0.8f);
+            // Désactiver l'animation de préparation et activer l'animation de saut
+            animator.SetBool(ANIM_PREPARE_JUMP, false);
+            animator.SetBool(ANIM_IS_JUMPING, true);
             
             // Appliquer la force de saut
             if (rb != null)
             {
                 // Calculer la hauteur du saut en fonction de la distance
-                float horizontalDistance = Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), 
-                                                          new Vector3(target.position.x, 0, target.position.z));
+                float horizontalDistance = Vector3.Distance(
+                    new Vector3(transform.position.x, 0, transform.position.z), 
+                    new Vector3(target.position.x, 0, target.position.z)
+                );
                 float verticalForce = jumpForce * (0.5f + horizontalDistance * 0.1f);
                 
                 // Réinitialiser la vélocité d'abord
                 rb.linearVelocity = Vector3.zero;
                 rb.AddForce(directionToTarget * jumpForce + Vector3.up * verticalForce, ForceMode.Impulse);
-                lastJumpTime = Time.time;
                 
                 Debug.Log($"{gameObject.name} effectue un saut d'attaque vers {target.name}");
             }
+
+            float groundCheckTime = 0f;
+            float maxGroundCheckTime = 3f; // Maximum 3 secondes pour attendre de toucher le sol
             
             // Attendre un peu pour permettre au Slime de quitter le sol
             yield return new WaitForSeconds(0.1f);
             
             // Attendre que le Slime touche à nouveau le sol
-            yield return new WaitUntil(() => IsGrounded());
+            while (!IsGrounded() && groundCheckTime < maxGroundCheckTime && totalCoroutineTime < maxCoroutineTime)
+            {
+                groundCheckTime += Time.deltaTime;
+                totalCoroutineTime += Time.deltaTime;
+                yield return null;
+            }
             
-            // Effet d'écrasement à l'atterrissage
-            transform.localScale = new Vector3(originalScale.x * 1.5f, originalScale.y * 0.5f, originalScale.z * 1.5f);
+            Debug.Log("Slime a atterri ou le temps maximum est écoulé");
+            
+            // Déclencher l'animation d'atterrissage
+            animator.SetBool(ANIM_IS_JUMPING, false);
+            animator.SetTrigger(ANIM_LAND);
             
             // Vérifier si on est proche de la cible pour infliger des dégâts
             CheckForJumpAttackDamage();
             
-            // Revenir progressivement à la forme normale
-            float recoveryTime = 0f;
-            while (recoveryTime < 0.3f) // Temps de récupération après l'atterrissage
-            {
-                float t = recoveryTime / 0.3f;
-                transform.localScale = Vector3.Lerp(
-                    new Vector3(originalScale.x * 1.5f, originalScale.y * 0.5f, originalScale.z * 1.5f),
-                    originalScale,
-                    t
-                );
-                recoveryTime += Time.deltaTime;
-                yield return null;
-            }
+            // Attendre que l'animation d'atterrissage se termine
+            yield return new WaitForSeconds(0.3f);
+            
+            // Réinitialiser les états
+            isJumping = false;
+            
+            Debug.Log($"{gameObject.name}: Animation de saut terminée correctement");
         }
-        
-        // Réinitialiser les états
+        else
+        {
+            // Annuler l'animation si aucune cible n'est disponible
+            CancelJumpAnimation();
+        }
+    }
+    
+    /// <summary>
+    /// Annule toutes les animations de saut et réinitialise les états
+    /// </summary>
+    private void CancelJumpAnimation()
+    {
+        isPrepareJump = false;
         isJumping = false;
-        transform.localScale = originalScale;
+        
+        if (animator != null)
+        {
+            animator.SetBool(ANIM_PREPARE_JUMP, false);
+            animator.SetBool(ANIM_IS_JUMPING, false);
+        }
     }
     
     /// <summary>
     /// Vérifie si le Slime est au sol
     /// </summary>
-    private bool IsGrounded()
+    protected override bool IsGrounded()    
     {
-        // On vérifie si le Slime touche le sol en lançant un petit rayon vers le bas
-        float rayLength = 0.3f;
-        return Physics.Raycast(transform.position, Vector3.down, rayLength, obstacleLayers);
+        // Augmentez la longueur du rayon pour mieux détecter le sol
+        float rayLength = 0.5f;
+        // Vérifiez que les couches détectées sont correctes
+        Debug.DrawRay(transform.position, Vector3.down * rayLength, Color.red, 0.1f);
+        bool grounded = Physics.Raycast(transform.position, Vector3.down, rayLength, obstacleLayers);
+        Debug.Log($"IsGrounded check: {grounded}");
+        return grounded;
     }
     
     /// <summary>
@@ -216,9 +355,6 @@ public class SlimeAI : MeleeAI
             {
                 // Calculer les dégâts du saut (dégâts de base * multiplicateur)
                 float jumpDamage = attackDamage * jumpDamageMultiplier;
-                
-                // Créer un objet temporaire comme source de dégâts
-                GameObject damageSource = gameObject;
                 
                 // Appliquer les dégâts
                 PlayerStats playerStats = hitCollider.GetComponent<PlayerStats>();
@@ -247,6 +383,79 @@ public class SlimeAI : MeleeAI
     }
     
     /// <summary>
+    /// Surcharge la méthode Attack pour utiliser l'Animator
+    /// </summary>
+    protected override void Attack()
+    {
+        // Ne pas attaquer si le cooldown n'est pas terminé ou si on est déjà en train d'attaquer
+        if (Time.time - lastAttackTime < attackCooldown || isAttacking) return;
+
+        lastAttackTime = Time.time;
+        isAttacking = true;
+
+        // Déclencher l'animation d'attaque via l'Animator et la coroutine
+        StartCoroutine(SlimeAttackCoroutine());
+    }
+    
+    /// <summary>
+    /// Coroutine gérant l'animation et les dégâts d'une attaque de slime
+    /// </summary>
+    protected virtual IEnumerator SlimeAttackCoroutine()
+    {
+        // Déclencher l'animation d'attaque via l'Animator
+        if (animator != null)
+        {
+            animator.SetTrigger(ANIM_ATTACK);
+        }
+        
+        Debug.Log($"{gameObject.name} commence une attaque de slime !");
+
+        // Attendre que l'animation se termine
+        yield return new WaitForSeconds(attackAnimationDuration);
+
+        // Appliquer les dégâts si la cible est toujours à portée
+        if (target != null && Vector3.Distance(transform.position, target.position) <= attackRange)
+        {
+            // Appliquer les dégâts
+            ApplyDamageToTarget(attackDamage);
+            
+            // Appliquer un effet de recul
+            ApplyKnockback(target);
+
+            // Gérer les combos si activés
+            if (useComboAttacks)
+            {
+                // Si on est dans la fenêtre de temps du combo
+                if (Time.time - lastComboTime < comboTimeWindow)
+                {
+                    currentComboCount++;
+                    
+                    // Si on n'a pas atteint le nombre maximum de coups
+                    if (currentComboCount < maxComboHits)
+                    {
+                        // Réduire le cooldown pour enchaîner plus vite
+                        lastAttackTime -= attackCooldown * 0.5f;
+                    }
+                    else
+                    {
+                        // Réinitialiser le compteur si on a atteint le max
+                        currentComboCount = 0;
+                    }
+                }
+                else
+                {
+                    // Hors de la fenêtre de temps, réinitialiser le compteur
+                    currentComboCount = 1;
+                }
+                
+                lastComboTime = Time.time;
+            }
+        }
+
+        isAttacking = false;
+    }
+    
+    /// <summary>
     /// Applique une force de knockback spécifique à une cible
     /// </summary>
     /// <param name="targetTransform">Transform de la cible</param>
@@ -269,63 +478,33 @@ public class SlimeAI : MeleeAI
     }
     
     /// <summary>
-    /// Réaction aux dégâts reçus
+    /// Réaction aux dégâts reçus - déclenche l'animation de dégâts
     /// </summary>
     public override void OnDamageReceived(float damage, GameObject source)
     {
         base.OnDamageReceived(damage, source);
         
-        // Animation de dommage (écrasement rapide)
-        StartCoroutine(DamageSquishAnimation());
-    }
-    
-    /// <summary>
-    /// Animation d'écrasement quand le Slime reçoit des dégâts
-    /// </summary>
-    private IEnumerator DamageSquishAnimation()
-    {
-        // Ne pas perturber l'animation de saut en cours
-        if (isJumping || isPrepareJump) yield break;
-        
-        // Sauvegarder l'échelle actuelle
-        Vector3 currentScale = transform.localScale;
-        
-        // Échelle aplatie
-        Vector3 damageScale = new Vector3(currentScale.x * 1.2f, currentScale.y * 0.7f, currentScale.z * 1.2f);
-        
-        // Rapide écrasement puis retour à la normale
-        float animTime = 0f;
-        float totalAnimDuration = 0.2f;
-        
-        while (animTime < totalAnimDuration)
+        // Déclencher l'animation de dégâts reçus
+        if (animator != null)
         {
-            float t = animTime / totalAnimDuration;
-            
-            // Aller vers l'écrasement puis revenir à la normale
-            if (t < 0.5f)
-            {
-                // Phase d'écrasement
-                transform.localScale = Vector3.Lerp(currentScale, damageScale, t * 2f);
-            }
-            else
-            {
-                // Phase de retour
-                transform.localScale = Vector3.Lerp(damageScale, currentScale, (t - 0.5f) * 2f);
-            }
-            
-            animTime += Time.deltaTime;
-            yield return null;
+            animator.SetTrigger(ANIM_TAKE_DAMAGE);
         }
-        
-        // S'assurer que l'échelle est revenue à la normale
-        transform.localScale = currentScale;
     }
     
     /// <summary>
-    /// Comportement à la mort du Slime
+    /// Comportement à la mort du Slime - déclenche l'animation de mort
     /// </summary>
     public override void OnDeath()
     {
+        // Arrêter toutes les animations en cours
+        CancelJumpAnimation();
+        
+        // Déclencher l'animation de mort
+        if (animator != null)
+        {
+            animator.SetTrigger(ANIM_DIE);
+        }
+        
         // Division en petits slimes si configuré
         if (canSplitOnDeath && smallerSlimePrefab != null)
         {

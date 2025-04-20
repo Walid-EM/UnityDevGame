@@ -103,7 +103,19 @@ public class AISpawner : MonoBehaviour
         // Parcourir toutes les données de spawn
         foreach (SpawnData spawnData in spawnDatas)
         {
-            if (spawnData.aiPrefab == null) continue;
+            if (spawnData.aiPrefab == null) 
+            {
+                Debug.LogError("Préfab d'IA manquant dans les données de spawn");
+                continue;
+            }
+
+            // Vérifier si le préfab a le composant BaseAI
+            BaseAI testComponent = spawnData.aiPrefab.GetComponent<BaseAI>();
+            if (testComponent == null)
+            {
+                Debug.LogError($"Le préfab {spawnData.aiPrefab.name} n'a pas de composant BaseAI attaché!");
+                continue;
+            }
 
             // Déterminer le nombre d'IA à spawner pour ce type
             int countToSpawn = Random.Range(spawnData.minCount, spawnData.maxCount + 1);
@@ -135,6 +147,13 @@ public class AISpawner : MonoBehaviour
     /// </summary>
     private void TrySpawnAI(SpawnData spawnData)
     {
+        // Vérification supplémentaire (même si déjà faite dans SpawnAIs)
+        if (spawnData == null || spawnData.aiPrefab == null)
+        {
+            Debug.LogError("Données de spawn invalides");
+            return;
+        }
+
         // Effectuer plusieurs tentatives pour trouver un point de spawn valide
         for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
         {
@@ -152,59 +171,98 @@ public class AISpawner : MonoBehaviour
             RaycastHit hit;
             if (Physics.Raycast(spawnPos + Vector3.up * 100f, Vector3.down, out hit, 200f, groundLayer))
             {
-                spawnPos = hit.point + Vector3.up * 0.1f; // Légèrement au-dessus du sol
+                spawnPos = hit.point + Vector3.up * 0.5f; // Légèrement plus haut au-dessus du sol (0.5f au lieu de 0.1f)
                 
                 // Vérifier qu'aucun obstacle n'est présent à ce point
                 if (!Physics.CheckSphere(spawnPos, 1f, obstacleLayer))
                 {
-                    // Créer l'IA
-                    GameObject aiInstance = Instantiate(spawnData.aiPrefab, spawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0));
-                    
-                    // Enregistrer l'IA dans le gestionnaire
-                    BaseAI aiComponent = aiInstance.GetComponent<BaseAI>();
-                    if (aiComponent != null && aiManager != null)
+                    try
                     {
-                        aiManager.RegisterAI(aiComponent);
-                    }
-                    
-                    // S'assurer que l'IA a un HealthSystem
-                    if (!aiInstance.GetComponent<HealthSystem>())
-                    {
-                        HealthSystem healthSystem = aiInstance.AddComponent<HealthSystem>();
+                        // Créer une sphère de debug pour voir où spawn l'IA
+                        if (debugMode)
+                        {
+                            GameObject debugSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                            debugSphere.transform.position = spawnPos;
+                            debugSphere.transform.localScale = Vector3.one * 0.5f;
+                            debugSphere.GetComponent<Renderer>().material.color = Color.red;
+                            Destroy(debugSphere, 10f); // Supprimer après 10 secondes
+                        }
                         
-                        // CORRECTION: Utiliser instanceof pour vérifier le type d'IA
-                        if (aiComponent is SlimeAI)
+                        // Créer l'IA
+                        GameObject aiInstance = Instantiate(spawnData.aiPrefab, spawnPos, Quaternion.Euler(0, Random.Range(0, 360f), 0));
+                        
+                        if (aiInstance == null)
                         {
-                            healthSystem.SetMaxHealth(70f, true);
-                            if (debugMode)
-                                Debug.Log($"SlimeAI détecté pour {aiInstance.name}, santé configurée à 70");
+                            Debug.LogError("Échec de l'instanciation de l'IA");
+                            continue;
                         }
-                        else if (aiComponent is MeleeAI)
+                        
+                        // Enregistrer l'IA dans le gestionnaire
+                        BaseAI aiComponent = aiInstance.GetComponent<BaseAI>();
+                        if (aiComponent != null && aiManager != null)
                         {
-                            healthSystem.SetMaxHealth(80f, true);
-                        }
-                        else if (aiComponent is RangedAI)
-                        {
-                            healthSystem.SetMaxHealth(60f, true);
-                        }
-                        else if (aiComponent.GetType().Name == "SlimeAI")
-                        {
-                            healthSystem.SetMaxHealth(40f, true);
+                            aiManager.RegisterAI(aiComponent);
+                            
+                            // S'assurer que l'IA est activée
+                            aiComponent.SetActive(true);
                         }
                         else
                         {
-                            healthSystem.SetMaxHealth(100f, true);
-                            if (debugMode)
-                                Debug.Log($"Type d'IA non reconnu: {aiComponent.GetType().Name}");
+                            Debug.LogError($"L'instance {aiInstance.name} n'a pas de composant BaseAI ou AIManager est null");
                         }
+                        
+                        // S'assurer que l'IA a un HealthSystem
+                        HealthSystem healthSystem = aiInstance.GetComponent<HealthSystem>();
+                        if (healthSystem == null)
+                        {
+                            healthSystem = aiInstance.AddComponent<HealthSystem>();
+                            
+                            // Configuration basée sur le type d'IA
+                            if (aiComponent != null)
+                            {
+                                if (aiComponent is SlimeAI)
+                                {
+                                    healthSystem.SetMaxHealth(70f, true);
+                                    if (debugMode)
+                                        Debug.Log($"SlimeAI détecté pour {aiInstance.name}, santé configurée à 70");
+                                }
+                                else if (aiComponent is MeleeAI)
+                                {
+                                    healthSystem.SetMaxHealth(80f, true);
+                                }
+                                else if (aiComponent is RangedAI)
+                                {
+                                    healthSystem.SetMaxHealth(60f, true);
+                                }
+                                else if (aiComponent.GetType().Name == "NeutralAI")
+                                {
+                                    healthSystem.SetMaxHealth(40f, true);
+                                }
+                                else
+                                {
+                                    healthSystem.SetMaxHealth(100f, true);
+                                    if (debugMode)
+                                        Debug.Log($"Type d'IA non reconnu: {aiComponent.GetType().Name}");
+                                }
+                            }
+                            else
+                            {
+                                healthSystem.SetMaxHealth(100f, true);
+                                Debug.LogWarning("Impossible de déterminer le type d'IA, santé par défaut configurée");
+                            }
+                        }
+                        
+                        if (debugMode)
+                        {
+                            Debug.Log($"IA {spawnData.aiPrefab.name} spawnée à {spawnPos}");
+                        }
+                        
+                        return; // Spawn réussi
                     }
-                    
-                    if (debugMode)
+                    catch (System.Exception e)
                     {
-                        Debug.Log($"IA {spawnData.aiPrefab.name} spawnée à {spawnPos}");
+                        Debug.LogError($"Exception lors du spawn de l'IA: {e.Message}\n{e.StackTrace}");
                     }
-                    
-                    return; // Spawn réussi
                 }
             }
         }
