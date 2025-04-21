@@ -4,6 +4,11 @@ public class TerrainChunk {
 	
 	const float colliderGenerationDistanceThreshold = 5;
 	public event System.Action<TerrainChunk, bool> onVisibilityChanged;
+
+	
+
+	public event System.Action<TerrainChunk, Vector3, Vector3> onChunkCreated;
+
 	public Vector2 coord;
 	 
 	GameObject meshObject;
@@ -71,11 +76,20 @@ public class TerrainChunk {
 
 
 	void OnHeightMapReceived(object heightMapObject) {
-		this.heightMap = (HeightMap)heightMapObject;
-		heightMapReceived = true;
+    this.heightMap = (HeightMap)heightMapObject;
+    heightMapReceived = true;
 
-		UpdateTerrainChunk ();
+    UpdateTerrainChunk();
+
+		if (onChunkCreated != null) {
+			Vector2 position = coord * meshSettings.meshWorldSize;
+			Vector3 chunkPos = new Vector3(position.x, 0, position.y);
+			Vector3 chunkSize = new Vector3(meshSettings.meshWorldSize, 0, meshSettings.meshWorldSize);
+			onChunkCreated(this, chunkPos, chunkSize);
+		}
 	}
+
+
 
 	Vector2 viewerPosition {
 		get {
@@ -177,5 +191,6 @@ class LODMesh {
 		hasRequestedMesh = true;
 		ThreadedDataRequester.RequestData (() => MeshGenerator.GenerateTerrainMesh (heightMap.values, meshSettings, lod), OnMeshDataReceived);
 	}
+
 
 }

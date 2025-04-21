@@ -25,6 +25,10 @@ MonoBehaviour:
     BaseValue: 1
     WeaponDamage: 2
     HealthRestore: 0
+    ManaRestore: 0
+    HungerRestore: 0
+    SpawnChance: 0.511
+    MaxInstancesPerChunk: 10
   - ID: 1
     Name: Sword
     InventoryIcon: {fileID: -777907166, guid: 6f4f4ce4abcf2ff47a330f153634742f, type: 3}
@@ -37,6 +41,10 @@ MonoBehaviour:
     BaseValue: 1
     WeaponDamage: 7
     HealthRestore: 0
+    ManaRestore: 0
+    HungerRestore: 0
+    SpawnChance: 0.626
+    MaxInstancesPerChunk: 10
   - ID: 2
     Name: PotionHP
     InventoryIcon: {fileID: -1996087336, guid: 904b5c5fecd8a2b46a6affa065e82854, type: 3}
@@ -49,3 +57,7 @@ MonoBehaviour:
     BaseValue: 1
     WeaponDamage: 0
     HealthRestore: 10
+    ManaRestore: 0
+    HungerRestore: 0
+    SpawnChance: 1
+    MaxInstancesPerChunk: 50

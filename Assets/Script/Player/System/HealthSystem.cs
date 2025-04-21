@@ -114,7 +114,7 @@ public class HealthSystem : MonoBehaviour
             }
             
             // Afficher l'effet de flash (si c'est le joueur et qu'il a un PlayerStatsUI)
-            if (GetComponent<PlayerStats>() != null)
+            /*if (GetComponent<PlayerStats>() != null)
             {
                 // Essayer de trouver un effet de flash dans l'UI
                 PlayerStatsUI ui = FindObjectOfType<PlayerStatsUI>();
@@ -127,7 +127,7 @@ public class HealthSystem : MonoBehaviour
                 {
                     Debug.Log("[DIAGNOSTIC] UI ou damageFlashImage non trouvé pour l'effet de flash");
                 }
-            }
+            }*/
             
             Debug.Log($"[DIAGNOSTIC] {gameObject.name} a subi {actualDamage} dégâts. Santé: {currentHealth}/{maxHealth}");
         }
@@ -181,7 +181,7 @@ public class HealthSystem : MonoBehaviour
                 Debug.Log("[DIAGNOSTIC] Son de guérison joué");
             }
             
-            Debug.Log($"[DIAGNOSTIC] {gameObject.name} a récupéré {actualHeal} points de vie. Santé: {currentHealth}/{maxHealth}");
+          //  Debug.Log($"[DIAGNOSTIC] {gameObject.name} a récupéré {actualHeal} points de vie. Santé: {currentHealth}/{maxHealth}");
         }
         else
         {

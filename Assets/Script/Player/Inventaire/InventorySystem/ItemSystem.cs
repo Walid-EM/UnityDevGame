@@ -113,7 +113,20 @@ public class ItemData
     public float HealthRestore; // Pour les consommables de type santé
     public float ManaRestore; // Pour les consommables de type mana
     public float HungerRestore; // Pour les consommables de type nourriture
+
+    //Spawn Object
+
+    //Paramètre chance de spawn (entre 0 et 1)
+
+    [Range(0f, 1f)]
+    public float SpawnChance = 0f;
+
+    //Parametres de nombres d'instance par chunk pour chaque item
     
+    [Tooltip("Nombre maximum d'instances de cet item qui peuvent être générées dans un même chunk")]
+    [Min(1)]
+    public int MaxInstancesPerChunk = 2;
+
     // Constructeur vide
     public ItemData() { }
     

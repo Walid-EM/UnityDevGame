@@ -18,9 +18,34 @@ public class TerrainGenerator : MonoBehaviour {
 	public Transform viewer;
 	public Material mapMaterial;
 
-	// Nouvelle option pour le spawn des IA
+	private ItemSpawner itemSpawner;
+
+	/// <summary>
+	/// Enregistre le spawner d'items et connecte les événements de création de chunks
+	/// </summary>
+	public void RegisterItemSpawner(ItemSpawner spawner)
+	{
+		this.itemSpawner = spawner;
+		
+		// Connecter l'événement onChunkCreated pour tous les chunks existants
+		foreach (var entry in terrainChunkDictionary)
+		{
+			TerrainChunk chunk = entry.Value;
+			chunk.onChunkCreated += spawner.OnChunkCreated;
+		}
+		
+		Debug.Log("TerrainGenerator: ItemSpawner enregistré avec succès");
+	}
+
+
+	// le spawn des IA
 	[Header("IA Spawning")]
 	public bool spawnAIAfterGeneration = true;
+
+	// Spawn D'Item
+	[Header("Item Spawning")]
+	public bool spawnItemsAfterGeneration = true;
+
 
 	Vector2 viewerPosition;
 	Vector2 viewerPositionOld;
@@ -33,19 +58,24 @@ public class TerrainGenerator : MonoBehaviour {
 
 	void Start() {
 
-		textureSettings.ApplyToMaterial(mapMaterial);
-		textureSettings.UpdateMeshHeights(mapMaterial, heightMapSettings.minHeight, heightMapSettings.maxHeight);
+		 textureSettings.ApplyToMaterial(mapMaterial);
+    	textureSettings.UpdateMeshHeights(mapMaterial, heightMapSettings.minHeight, heightMapSettings.maxHeight);
 
-		float maxViewDst = detailLevels[detailLevels.Length - 1].visibleDstThreshold;
-		meshWorldSize = meshSettings.meshWorldSize;
-		chunksVisibleInViewDst = Mathf.RoundToInt(maxViewDst / meshWorldSize);
+   		float maxViewDst = detailLevels[detailLevels.Length - 1].visibleDstThreshold;
+    	meshWorldSize = meshSettings.meshWorldSize;
+    	chunksVisibleInViewDst = Mathf.RoundToInt(maxViewDst / meshWorldSize);
 
-		UpdateVisibleChunks();
+    	UpdateVisibleChunks();
 
 		// Démarrer la coroutine pour attendre que le terrain soit généré
 		if (spawnAIAfterGeneration) {
 			StartCoroutine(WaitForTerrainAndSpawnAI());
 		}
+
+		// Démarer la coroutine pour le spawn d'items
+		if (spawnItemsAfterGeneration) {
+        StartCoroutine(WaitForTerrainAndSpawnItems());
+    	}
 	}
 
 	void Update() {
@@ -83,6 +113,11 @@ public class TerrainGenerator : MonoBehaviour {
 						TerrainChunk newChunk = new TerrainChunk(viewedChunkCoord, heightMapSettings, meshSettings, detailLevels, colliderLODIndex, transform, viewer, mapMaterial);
 						terrainChunkDictionary.Add(viewedChunkCoord, newChunk);
 						newChunk.onVisibilityChanged += OnTerrainChunkVisibilityChanged;
+
+						if (itemSpawner != null) {
+            			newChunk.onChunkCreated += itemSpawner.OnChunkCreated;
+        				}
+
 						newChunk.Load();
 					}
 				}
@@ -101,6 +136,21 @@ public class TerrainGenerator : MonoBehaviour {
 	/// <summary>
 	/// Attend que suffisamment de terrain soit généré avant de spawner les IA
 	/// </summary>
+	
+	private IEnumerator WaitForTerrainAndSpawnItems() {
+		
+			// Attendre qu'un nombre minimum de chunks soit visible
+		int minChunksNeeded = 9; // Typiquement un carré 3x3 autour du joueur
+		Debug.Log("TerrainGenerator: En attente de génération de terrain suffisante pour items...");
+		
+			// Attendre que le nombre minimum de chunks soit atteint
+		yield return new WaitUntil(() => visibleTerrainChunks.Count >= minChunksNeeded);
+		
+		Debug.Log($"TerrainGenerator: {visibleTerrainChunks.Count} chunks générés, prêt à spawner les items");
+		
+			// Attendre un petit délai supplémentaire pour stabiliser le terrain
+		yield return new WaitForSeconds(1.0f);
+	}
 	private IEnumerator WaitForTerrainAndSpawnAI() {
 		// Attendre qu'un nombre minimum de chunks soit visible
 		int minChunksNeeded = 9; // Typiquement un carré 3x3 autour du joueur

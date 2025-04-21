@@ -91,7 +91,7 @@ public class PlayerStats : MonoBehaviour
         
         // S'abonner aux événements du HealthSystem
         healthSystem.OnHealthChanged.AddListener((current, max) => {
-            Debug.Log($"[DIAGNOSTIC] HealthSystem Event reçu: Health = {current}/{max}");
+//            Debug.Log($"[DIAGNOSTIC] HealthSystem Event reçu: Health = {current}/{max}");
             OnHealthChanged.Invoke(current, max);
             
             // Ajout d'un log pour vérifier combien de listeners sont abonnés

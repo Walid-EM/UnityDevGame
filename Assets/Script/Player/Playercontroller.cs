@@ -85,6 +85,7 @@ public class PlayerController : MonoBehaviour
         
         if (currentTarget != null && Input.GetKeyDown(KeyCode.E))
         {
+            Debug.Log("E pressed, attempting to pick up " + currentTarget.GetItemName());
             PickupTargetItem();
         }
         
@@ -121,8 +122,12 @@ public class PlayerController : MonoBehaviour
         RaycastHit hit;
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         
+        Debug.DrawRay(ray.origin, ray.direction * interactionDistance, Color.red);
+
         if (Physics.Raycast(ray, out hit, interactionDistance, interactableLayers))
         {
+            Debug.Log($"Hit: {hit.collider.gameObject.name}, Layer: {hit.collider.gameObject.layer}");
+
             PickupItem item = hit.collider.GetComponentInParent<PickupItem>();
             
             if (item != null)
@@ -159,7 +164,12 @@ public class PlayerController : MonoBehaviour
     
     private void PickupTargetItem()
     {
-        if (currentTarget == null) return;
+        if (currentTarget == null) 
+            {
+                Debug.LogWarning("currentTarget is null");
+
+            return;
+            }
         
         if (InventoryManager.Instance == null) return;
         
@@ -355,7 +365,7 @@ public class PlayerController : MonoBehaviour
         }
     }
     
-    private void UseWeapon()
+     private void UseWeapon()
     {
         WeaponSystem weaponSystem = currentEquippedObject?.GetComponent<WeaponSystem>();
         if (weaponSystem != null)
